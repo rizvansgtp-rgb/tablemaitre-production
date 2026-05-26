@@ -1,0 +1,6 @@
+{
+  "name": "TableMaître",
+  "description": "Enterprise-grade SaaS Restaurant Management Suite with Multi-Store HQ, Real-Time Telemetry, AI Strategic Insights (Gemini), and Scalable Database Infrastructure.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
