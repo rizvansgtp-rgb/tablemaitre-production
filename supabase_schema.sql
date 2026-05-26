@@ -169,6 +169,9 @@ DROP POLICY IF EXISTS "profiles_admin_all" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update_self" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_owner_admin" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_owner_admin_insert" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_owner_admin_update" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_owner_admin_delete" ON public.profiles;
 
 DROP POLICY IF EXISTS "sections_select_all" ON public.sections;
 DROP POLICY IF EXISTS "sections_modify_policy" ON public.sections;
@@ -225,7 +228,13 @@ CREATE POLICY "stores_admin" ON public.stores FOR ALL USING (
 
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "profiles_update_self" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "profiles_owner_admin" ON public.profiles FOR ALL USING (
+CREATE POLICY "profiles_owner_admin_insert" ON public.profiles FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+);
+CREATE POLICY "profiles_owner_admin_update" ON public.profiles FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+);
+CREATE POLICY "profiles_owner_admin_delete" ON public.profiles FOR DELETE USING (
     EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
 );
 

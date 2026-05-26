@@ -71,13 +71,34 @@ CREATE POLICY "profiles_update_self" ON public.profiles
     FOR UPDATE USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "profiles_owner_admin" ON public.profiles;
-CREATE POLICY "profiles_owner_admin" ON public.profiles
-    FOR ALL USING (
+DROP POLICY IF EXISTS "profiles_owner_admin_insert" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_owner_admin_update" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_owner_admin_delete" ON public.profiles;
+
+CREATE POLICY "profiles_owner_admin_insert" ON public.profiles
+    FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.profiles p
             WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin')
         )
     );
+
+CREATE POLICY "profiles_owner_admin_update" ON public.profiles
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin')
+        )
+    );
+
+CREATE POLICY "profiles_owner_admin_delete" ON public.profiles
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin')
+        )
+    );
+
 
 -- ==========================================
 -- 3. SECTIONS
