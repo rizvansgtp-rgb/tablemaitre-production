@@ -414,6 +414,10 @@ export default function FloorPlan() {
   // Drag and drop / Pan workspace helpers
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isEditing || draggingTableId) return;
+    // Prevent panning when clicking on a table node or other interactive controls
+    if ((e.target as HTMLElement).closest('.table-node-interactive, button, select, input')) {
+      return;
+    }
     setIsPanning(true);
     setPanStart({ x: e.clientX - viewState.x, y: e.clientY - viewState.y });
     if (containerRef.current) {
