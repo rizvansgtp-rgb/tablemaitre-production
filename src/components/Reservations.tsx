@@ -626,7 +626,7 @@ export default function Reservations() {
                       className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-xs text-[#3ecf8e] focus:outline-none focus:border-[#3ecf8e] uppercase font-bold font-mono"
                     >
                       <option value="booked">Booked</option>
-                      <option value="confirmed font-bold">Confirmed</option>
+                      <option value="confirmed">Confirmed</option>
                       <option value="seated">Seated</option>
                       <option value="completed">Completed</option>
                       <option value="no-show">No-Show</option>
