@@ -116,21 +116,13 @@ export default function FloorPlan() {
 
       if (error) {
         console.error('Error loading sections:', error);
+        alert(`Failed to load sections from database: ${error.message}`);
+        setSections([]);
       } else if (data && data.length > 0) {
-        setSections(data);
+        const sorted = [...data].sort((a: any, b: any) => a.name.localeCompare(b.name));
+        setSections(sorted);
       } else {
-        const demoSecs = [
-          { id: `${storeId}-Indoor Main`, store_id: storeId, name: 'Indoor Main' },
-          { id: `${storeId}-Outdoor Terrace`, store_id: storeId, name: 'Outdoor Terrace' },
-          { id: `${storeId}-VIP Lounge`, store_id: storeId, name: 'VIP Lounge' },
-          { id: `${storeId}-Garden Area`, store_id: storeId, name: 'Garden Area' }
-        ];
-        setSections(demoSecs);
-        try {
-          await supabase.from('sections').insert(demoSecs);
-        } catch (err) {
-          console.error('Failed to seed sections:', err);
-        }
+        setSections([]);
       }
     } catch (err) {
       console.error('Unexpected error loading sections:', err);
@@ -179,6 +171,33 @@ export default function FloorPlan() {
     }
   };
 
+  const handleInitializeDefaultSections = async () => {
+    const storeId = profile?.active_store || '0301';
+    const demoSecs = [
+      { id: `${storeId}-Indoor Main`, store_id: storeId, name: 'Indoor Main' },
+      { id: `${storeId}-Outdoor Terrace`, store_id: storeId, name: 'Outdoor Terrace' },
+      { id: `${storeId}-VIP Lounge`, store_id: storeId, name: 'VIP Lounge' },
+      { id: `${storeId}-Garden Area`, store_id: storeId, name: 'Garden Area' }
+    ];
+    setSections(demoSecs);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('sections').insert(demoSecs);
+        if (error) {
+          console.error('Failed to seed sections:', error);
+          alert(`Failed to initialize sections: ${error.message}`);
+          setSections([]);
+        }
+      } catch (err: any) {
+        console.error('Failed to seed sections:', err);
+        alert(`Failed to initialize sections: ${err.message || err}`);
+        setSections([]);
+      }
+    } else {
+      localStorage.setItem('table_maitre_sections', JSON.stringify(demoSecs));
+    }
+  };
+
   async function fetchTables(storeId: string = profile?.active_store || '0301') {
     try {
       if (!isSupabaseConfigured) {
@@ -211,12 +230,13 @@ export default function FloorPlan() {
 
       if (error) {
         console.error('Error fetching tables:', error);
-        setTables(getDemoTables(storeId));
+        alert(`Failed to load tables from database: ${error.message}`);
+        setTables([]);
       } else {
         const mapped = (data || []).map((t: any) => ({
           ...t,
           shape: t.shape || t.type || 'square',
-          section_id: t.section_id || 'Indoor Main'
+          section_id: t.section_id || (sections[0]?.id || `${storeId}-Indoor Main`)
         }));
         setTables(mapped);
       }
@@ -396,12 +416,37 @@ export default function FloorPlan() {
       return;
     }
 
+    if (activeSection === 'All') {
+      alert("Cannot add tables in 'All' view. Please select a specific section first.");
+      return;
+    }
+
     const nextNumber = tables.length > 0 
       ? (Math.max(...tables.map(t => parseInt(t.number) || 0)) + 1).toString()
       : "1";
     
-    const activeSecId = activeSection === 'All' ? (sections[0]?.id || 'Indoor Main') : activeSection;
+    const activeSecId = activeSection;
     const tempId = `temp-table-${Date.now()}`;
+
+    // Safe next-position algorithm to avoid overlaps
+    const sectionTables = tables.filter(t => t.section_id === activeSecId);
+    let nextX = 100;
+    let nextY = 100;
+    
+    // Find section index to assign to quadrants
+    const secIndex = sections.findIndex(s => s.id === activeSecId);
+    const offsetX = secIndex >= 0 ? (secIndex % 2) * 800 : 0;
+    const offsetY = secIndex >= 0 ? Math.floor(secIndex / 2) * 500 : 0;
+
+    if (sectionTables.length > 0) {
+      const count = sectionTables.length;
+      const row = Math.floor(count / 5);
+      const col = count % 5;
+      nextX = col * 180 + 100;
+      nextY = row * 180 + 100;
+    }
+    nextX += offsetX;
+    nextY += offsetY;
 
     const newTable: Table = {
       id: tempId,
@@ -409,8 +454,8 @@ export default function FloorPlan() {
       number: nextNumber,
       capacity: 4,
       status: 'available',
-      x: 200,
-      y: 200,
+      x: nextX,
+      y: nextY,
       shape: 'square',
       section_id: activeSecId,
     };
@@ -418,7 +463,6 @@ export default function FloorPlan() {
     setTables(prev => [...prev, newTable]);
     setSelectedTable(newTable);
 
-    // Queue split operation offline
     addToOfflineQueue('insert', 'restaurant_tables', newTable);
 
     if (isSupabaseConfigured) {
@@ -434,14 +478,13 @@ export default function FloorPlan() {
         if (error) {
           console.error('Error adding table:', error);
           alert(`Failed to add table to database: ${error.message}`);
-          // Revert state
           setTables(prev => prev.filter(t => t.id !== tempId));
           setSelectedTable(null);
         } else if (data) {
           const mapped = {
             ...data,
             shape: data.shape || 'square',
-            section_id: data.section_id || 'Indoor Main'
+            section_id: data.section_id || activeSecId
           };
           setTables(prev => prev.map(t => t.id === tempId ? mapped : t));
           setSelectedTable(mapped);
@@ -449,7 +492,6 @@ export default function FloorPlan() {
       } catch (err: any) {
         console.error('Unexpected error adding table:', err);
         alert(`Failed to add table: ${err.message || err}`);
-        // Revert state
         setTables(prev => prev.filter(t => t.id !== tempId));
         setSelectedTable(null);
       }
@@ -490,6 +532,7 @@ export default function FloorPlan() {
   };
 
   const handleTablePointerDown = (e: React.PointerEvent, table: Table) => {
+    if (activeSection === 'All') return;
     if (!isEditing || profile?.role === 'waiter') return;
     e.stopPropagation();
     setDraggingTableId(table.id);
@@ -660,17 +703,20 @@ export default function FloorPlan() {
     return `${hrs}h ${mins}m ago`;
   };
 
+  useEffect(() => {
+    if (activeSection === 'All') {
+      setIsEditing(false);
+    }
+  }, [activeSection]);
+
   const filteredTables = useMemo(() => {
     if (activeSection === 'All') {
-      return tables;
+      return [...tables].sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
     }
-    return tables.filter(t => {
-      // Dynamic mapping for backwards compatibility
-      const mappedName = sectionNameMap[t.section_id] || t.section_id;
-      const targetName = sectionNameMap[activeSection] || activeSection;
-      return t.section_id === activeSection || mappedName === targetName;
-    }).sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
-  }, [tables, activeSection, sectionNameMap]);
+    return tables
+      .filter(t => t.section_id === activeSection)
+      .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+  }, [tables, activeSection]);
 
   if (loading) {
     return (
@@ -681,12 +727,7 @@ export default function FloorPlan() {
     );
   }
 
-  const sectionsToShow = sections.length > 0 ? sections : [
-    { id: 'Indoor Main', name: 'Indoor Main' },
-    { id: 'Outdoor Terrace', name: 'Outdoor Terrace' },
-    { id: 'VIP Lounge', name: 'VIP Lounge' },
-    { id: 'Garden Area', name: 'Garden Area' }
-  ];
+  const sectionsToShow = sections;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden p-6 pb-4">
@@ -736,7 +777,7 @@ export default function FloorPlan() {
         </div>
 
         <div className="flex items-center gap-3">
-          {profile?.role !== 'waiter' && activeSection === 'All' && (
+          {profile?.role !== 'waiter' && activeSection !== 'All' && (
             <button 
               onClick={() => setIsEditing(!isEditing)}
               className={cn(
@@ -763,13 +804,30 @@ export default function FloorPlan() {
       </div>
 
       <div className="flex-1 relative min-h-0 w-full h-full">
-        <div 
-          ref={containerRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner touch-none select-none"
-        >
+        {sections.length === 0 ? (
+          <div className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl flex flex-col items-center justify-center p-10 text-center shadow-inner">
+            <div className="w-16 h-16 bg-[#0f172a] rounded-2xl flex items-center justify-center text-slate-600 mb-6 border border-slate-800">
+              <AlertCircle size={28} className="text-amber-500" />
+            </div>
+            <h2 className="text-lg font-bold text-white mb-2 tracking-tight uppercase">Empty Floor Layout</h2>
+            <p className="max-w-md text-slate-500 text-xs leading-relaxed mb-6">
+              There are no sections configured for this branch. You must initialize default sections to begin configuring the floor plan.
+            </p>
+            <button 
+              onClick={handleInitializeDefaultSections}
+              className="bg-[#3ecf8e] text-[#020617] px-6 py-2.5 rounded text-[10px] uppercase tracking-widest font-bold hover:brightness-110 transition-all cursor-pointer shadow-md"
+            >
+              Initialize Default Sections
+            </button>
+          </div>
+        ) : (
+          <div 
+            ref={containerRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner touch-none select-none"
+          >
           <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
             Primary Layout Workspace
           </div>
@@ -919,6 +977,7 @@ export default function FloorPlan() {
             </div>
           )}
         </div>
+      )}
       </div>
 
       <AnimatePresence>
