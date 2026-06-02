@@ -317,12 +317,12 @@ export default function Waitlist() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Wait Queue</h2>
-          <p className="text-slate-500 mt-1">Live management of the restaurant wait queue.</p>
+          <h2 className="page-title">Wait Queue</h2>
+          <p className="page-subtitle">Live management of the restaurant Wait Queue.</p>
         </div>
-        <button 
+        <button
           onClick={handleAddClick}
-          className="bg-[#3ecf8e] text-[#020617] px-6 py-2.5 rounded text-[10px] uppercase tracking-[0.2em] font-bold hover:shadow-[0_0_20px_rgba(62,207,142,0.4)] transition-all flex items-center gap-2 cursor-pointer font-mono"
+          className="btn-primary"
         >
           <Plus size={14} />
           Add Walk-In
@@ -337,55 +337,62 @@ export default function Waitlist() {
                key={entry.id}
                initial={{ opacity: 0, y: 10 }}
                animate={{ opacity: 1, y: 0 }}
-               className="bg-slate-900/40 border border-slate-800 rounded-xl p-5 flex items-center gap-6 group hover:border-[#3ecf8e]/30 transition-all backdrop-blur-sm"
+               className="glass-card"
+               style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 18 }}
              >
-                <div className="w-12 h-12 bg-[#020617] rounded-lg border border-slate-800 flex items-center justify-center text-[#3ecf8e] shadow-lg">
-                  <div className="text-center font-mono">
-                    <p className="text-[14px] font-black leading-none">{entry.party_size}</p>
-                    <p className="text-[8px] uppercase tracking-tighter text-slate-500 font-bold">Seats</p>
-                  </div>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                  background: 'rgba(62,207,142,0.08)', border: '1px solid rgba(62,207,142,0.18)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column'
+                }}>
+                  <p style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-emerald)', lineHeight: 1, fontFamily: 'var(--font-mono)' }}>{entry.party_size}</p>
+                  <p style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-muted)', fontWeight: 700 }}>Pax</p>
                 </div>
 
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-white tracking-tight">{entry.guest_name}</h3>
-                  <div className="flex flex-wrap items-center gap-4 mt-1.5 font-mono text-[10px] text-slate-500">
-                    <div className="flex items-center gap-1.5">
-                      <Clock size={10} className="text-slate-600" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', marginBottom: 4 }}>{entry.guest_name}</h3>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Clock size={10} style={{ color: 'var(--text-muted)' }} />
                       Waiting {formatDistanceToNow(new Date(entry.created_at))}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Phone size={10} className="text-slate-600" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Phone size={10} style={{ color: 'var(--text-muted)' }} />
                       {entry.phone}
                     </div>
                   </div>
                   {entry.notes && (
-                    <p className="mt-2 text-[10px] text-amber-500 font-mono bg-amber-500/5 px-2.5 py-1 rounded inline-block border border-amber-500/10">
+                    <p style={{ marginTop: 8, fontSize: 10, color: '#f59e0b', fontFamily: 'var(--font-mono)', background: 'rgba(245,158,11,0.06)', padding: '3px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid rgba(245,158,11,0.12)' }}>
                       📝 {entry.notes}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                   <button 
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                   <button
                      onClick={() => handleOpenSeating(entry)}
-                     className="px-4 py-2 bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/30 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-[#3ecf8e] hover:text-[#020617] transition-all flex items-center gap-2 cursor-pointer font-mono"
+                     className="btn-primary"
+                     style={{ fontSize: 10, letterSpacing: '0.10em', textTransform: 'uppercase', padding: '7px 14px' }}
                    >
                      <ArrowRight size={12} />
                      Seat Guest
                    </button>
-                   <button 
+                   <button
                      onClick={() => handleEditClick(entry)}
-                     className="p-2 text-slate-600 hover:text-[#3ecf8e] transition-colors cursor-pointer"
+                     className="btn-icon"
                      title="Edit Details"
                    >
-                     <Edit3 size={16} />
+                     <Edit3 size={14} />
                    </button>
-                   <button 
+                   <button
                      onClick={() => handleCancelWaitlist(entry.id)}
-                     className="p-2 text-slate-600 hover:text-red-400 transition-colors cursor-pointer"
+                     className="btn-icon"
                      title="Cancel"
+                     style={{ color: 'var(--text-muted)' }}
+                     onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = '#f43f5e'}
+                     onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}
                    >
-                     <Trash2 size={16} />
+                     <Trash2 size={14} />
                    </button>
                 </div>
              </motion.div>

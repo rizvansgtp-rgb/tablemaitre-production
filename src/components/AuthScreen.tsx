@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { LogIn, UserPlus, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { LogIn, UserPlus, AlertTriangle, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('owner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,6 @@ export default function AuthScreen() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     setLoading(true);
     setError(null);
     setMessage(null);
@@ -25,13 +25,9 @@ export default function AuthScreen() {
     if (!isSupabaseConfigured) {
       try {
         if (isLogin) {
-          if (signInDemo) {
-            await signInDemo(email, role);
-          }
+          if (signInDemo) await signInDemo(email, role);
         } else {
-          if (signUpDemo) {
-            await signUpDemo(email, role);
-          }
+          if (signUpDemo) await signUpDemo(email, role);
           setMessage('Mock account initialized successfully in demo mode!');
         }
       } catch (err: any) {
@@ -47,16 +43,10 @@ export default function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ 
-          email, 
+        const { error } = await supabase.auth.signUp({
+          email,
           password,
-          options: {
-            // Note: If Supabase triggers aren't set up, we'd create the profile here.
-            // But based on the prompt, it seems they expect user creation to flow properly.
-            data: {
-              email: email,
-            }
-          }
+          options: { data: { email } }
         });
         if (error) throw error;
         setMessage('Check your email for the confirmation link!');
@@ -69,149 +59,232 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#020617] px-4 relative overflow-hidden">
-      {/* Background Glow Effect */}
-      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#3ecf8e]/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#3ecf8e]/3 rounded-full blur-[120px] pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
+      style={{ background: 'var(--bg-deep)' }}>
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+      {/* Ambient Orbs */}
+      <div className="bg-orb bg-orb-emerald animate-orb-1"
+        style={{ width: 700, height: 700, top: '-20%', right: '-15%', opacity: 0.7 }} />
+      <div className="bg-orb bg-orb-indigo animate-orb-2"
+        style={{ width: 600, height: 600, bottom: '-20%', left: '-15%', opacity: 0.7 }} />
+      <div className="bg-orb bg-orb-rose"
+        style={{ width: 400, height: 400, top: '60%', right: '10%', opacity: 0.5 }} />
+
+      {/* Background grid pattern */}
+      <div className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(62,207,142,0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(62,207,142,0.025) 1px, transparent 1px)
+          `,
+          backgroundSize: '48px 48px'
+        }} />
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-[#0f172a]/50 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-md overflow-hidden relative z-10"
+        transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+        className="w-full max-w-md relative z-10"
       >
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-           <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=300" alt="bg" className="w-32 h-32 object-cover rounded-full rotate-12" />
-        </div>
+        {/* Card */}
+        <div className="modal-box p-0">
 
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-[#3ecf8e] rounded-lg flex items-center justify-center text-slate-950 font-bold text-xl shadow-[0_0_15px_rgba(62,207,142,0.4)]">
-              TM
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">TableMaître</h1>
-          </div>
-        </div>
+          {/* Card top accent */}
+          <div style={{
+            height: 3,
+            background: 'linear-gradient(90deg, transparent 0%, #3ecf8e 40%, #6366f1 80%, transparent 100%)',
+            borderRadius: '20px 20px 0 0'
+          }} />
 
-        <div className="flex gap-4 mb-8 p-1 bg-slate-900/50 rounded-xl border border-slate-800">
-          <button 
-            type="button"
-            onClick={() => {
-              console.log('[Auth] Tab clicked: Sign In');
-              setIsLogin(true);
-            }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${isLogin ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            <LogIn size={16} />
-            Sign In
-          </button>
-          <button 
-            type="button"
-            onClick={() => {
-              console.log('[Auth] Tab clicked: Create Account');
-              setIsLogin(false);
-            }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${!isLogin ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            <UserPlus size={16} />
-            Create Account
-          </button>
-        </div>
+          <div className="p-8">
+            {/* Logo */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className="flex justify-center mb-8"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg"
+                  style={{
+                    background: 'linear-gradient(135deg, #3ecf8e 0%, #059669 100%)',
+                    color: '#040d18',
+                    boxShadow: '0 0 24px rgba(62,207,142,0.35), 0 4px 12px rgba(0,0,0,0.4)'
+                  }}
+                >
+                  TM
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+                    TableMaître
+                  </h1>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>Restaurant Operations Suite</p>
+                </div>
+              </div>
+            </motion.div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-1.5 ml-1">Email Address</label>
-            <input 
-              type="email" 
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-all"
-              placeholder="name@restaurant.com"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-1.5 ml-1">Password</label>
-            <input 
-              type="password" 
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-all"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {!isSupabaseConfigured && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-1.5 ml-1">E2E Role Privilege (Demo Mode)</label>
-              <select 
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-[#3ecf8e] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-all font-mono text-xs uppercase"
-              >
-                <option value="owner" className="bg-[#0f172a]">Owner (Admin, Full Access)</option>
-                <option value="manager" className="bg-[#0f172a]">Manager (Admin, Full Access)</option>
-                <option value="host" className="bg-[#0f172a]">Host (Staff, Limited Access)</option>
-                <option value="waiter" className="bg-[#0f172a]">Waiter (Staff, Limited Access)</option>
-              </select>
-            </div>
-          )}
-
-          <AnimatePresence mode="wait">
-            {!isSupabaseConfigured && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl mb-6 flex gap-3"
-              >
-                <AlertTriangle className="text-amber-500 shrink-0" size={18} />
-                <div className="space-y-2">
-                  <p className="text-xs text-amber-200 leading-relaxed font-medium">
-                    Supabase connection not detected. Please add your project credentials to the project secrets.
-                  </p>
-                  <button 
-                    onClick={() => window.location.reload()}
-                    className="text-[10px] uppercase tracking-wider font-bold text-amber-500 hover:text-amber-400 underline underline-offset-4"
+            {/* Auth Tab Toggle */}
+            <div className="flex gap-1 mb-7 p-1 rounded-xl"
+              style={{ background: 'rgba(0,0,0,0.30)', border: '1px solid var(--border-subtle)' }}>
+              {[
+                { id: 'login', label: 'Sign In', icon: LogIn },
+                { id: 'signup', label: 'Create Account', icon: UserPlus }
+              ].map(({ id, label, icon: Icon }) => {
+                const active = (id === 'login') === isLogin;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setIsLogin(id === 'login');
+                      setError(null);
+                      setMessage(null);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all"
+                    style={{
+                      background: active ? 'rgba(62,207,142,0.12)' : 'transparent',
+                      color: active ? 'var(--color-emerald)' : 'var(--text-muted)',
+                      border: active ? '1px solid rgba(62,207,142,0.22)' : '1px solid transparent',
+                      letterSpacing: '0.04em'
+                    }}
                   >
-                    Check connectivity again
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAuth} className="space-y-4">
+              {/* Email */}
+              <div>
+                <label className="label-glass">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-glass"
+                  placeholder="name@restaurant.com"
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="label-glass">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-glass"
+                    placeholder="••••••••"
+                    style={{ paddingRight: '40px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
-              </motion.div>
-            )}
+              </div>
 
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-xl flex items-center gap-2 mb-4"
+              {/* Demo Role Selector */}
+              {!isSupabaseConfigured && (
+                <div>
+                  <label className="label-glass">Demo Role Privilege</label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="input-glass"
+                    style={{ color: 'var(--color-emerald)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: '11px' }}
+                  >
+                    <option value="owner" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>Owner — Full Access</option>
+                    <option value="manager" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>Manager — Admin Access</option>
+                    <option value="host" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>Host — Limited Access</option>
+                    <option value="waiter" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>Waiter — Floor Access</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Status Messages */}
+              <AnimatePresence mode="wait">
+                {!isSupabaseConfigured && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="alert-warning"
+                  >
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold mb-0.5">Demo Mode Active</p>
+                      <p className="opacity-80 text-xs">Supabase not configured. Using local data only.</p>
+                      <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="text-[10px] uppercase tracking-wider font-bold mt-1 underline underline-offset-4 opacity-90 hover:opacity-100"
+                      >
+                        Retry connection
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {error && (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="alert-danger"
+                  >
+                    <ShieldCheck size={14} className="shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+                {message && (
+                  <motion.div
+                    key="message"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="alert-success"
+                  >
+                    {message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full py-3.5 text-sm"
+                style={{ marginTop: '8px' }}
               >
-                <span>⚠️ {error}</span>
-              </motion.div>
-            )}
-            {message && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/50 text-[#3ecf8e] text-sm p-3 rounded-xl"
-              >
-                {message}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeDasharray="60" strokeDashoffset="60" />
+                    </svg>
+                    Processing...
+                  </span>
+                ) : isLogin ? 'Sign In to Dashboard' : 'Create Account'}
+              </button>
+            </form>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-[#3ecf8e] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[#020617] font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(62,207,142,0.2)] active:scale-[0.98]"
-          >
-            {loading ? 'Processing...' : (isLogin ? 'Enter Workspace' : 'Initialize Profile')}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center text-slate-600 text-[10px] uppercase tracking-widest">
-          Premium Restaurant Operations Suite v4.0.0
+            {/* Footer */}
+            <p className="mt-7 text-center text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.18em' }}>
+              Premium Restaurant Suite · v4.0
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

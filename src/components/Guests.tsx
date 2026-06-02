@@ -318,8 +318,8 @@ export default function Guests() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Guest CRM</h2>
-          <p className="text-slate-500 mt-1">High-fidelity guest loyalty and preference tracking.</p>
+          <h2 className="page-title">Guest CRM</h2>
+          <p className="page-subtitle">High-fidelity guest loyalty and preference tracking.</p>
         </div>
         <button 
           onClick={handleRegisterClick}

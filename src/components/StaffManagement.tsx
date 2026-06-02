@@ -211,8 +211,8 @@ export default function StaffManagement() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Staff Management</h2>
-          <p className="text-slate-500 mt-1">Manage roles, operational access, and shift assignments.</p>
+          <h2 className="page-title">Staff Management</h2>
+          <p className="page-subtitle">Manage roles, operational access, and shift assignments.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}

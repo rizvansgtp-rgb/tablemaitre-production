@@ -60,52 +60,45 @@ function AIInsight({ storeContext }: { storeContext: any }) {
   };
 
   return (
-    <div className="p-6 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-2xl relative overflow-hidden group">
-      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-        <Sparkles size={40} className="text-[#3ecf8e]" />
+    <div className="glass-card-accent" style={{ padding: 22, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 12, right: 12, opacity: 0.07, pointerEvents: 'none' }}>
+        <Sparkles size={48} style={{ color: 'var(--color-emerald)' }} />
       </div>
-       <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-[#3ecf8e]/10 rounded-lg">
-             <TrendingUp size={16} className="text-[#3ecf8e]" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(62,207,142,0.12)', border: '1px solid rgba(62,207,142,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <TrendingUp size={14} style={{ color: 'var(--color-emerald)' }} />
+        </div>
+        <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-secondary)' }}>
+          AI Strategic Insights
+        </h4>
+      </div>
+      <div style={{ minHeight: 60, display: 'flex', flexDirection: 'column', justifyContent: 'center', marginBottom: 14 }}>
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+            <Loader2 className="animate-spin" size={13} />
+            Analyzing realtime data...
           </div>
-          <h4 className="text-[10px] font-bold text-white uppercase tracking-widest">AI Strategic Insights</h4>
-       </div>
-       <div className="min-h-[60px] flex flex-col justify-center">
-         {loading ? (
-            <div className="flex items-center gap-2 text-slate-500 font-mono text-xs">
-              <Loader2 className="animate-spin" size={14} />
-              Analyzing realtime telemetry...
-            </div>
-         ) : error ? (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-[10px] text-red-400 leading-relaxed font-medium">
-                {error}
-              </p>
-            </div>
-         ) : insight ? (
-            <motion.p 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }}
-              className="text-xs text-slate-300 leading-relaxed font-medium"
-            >
-              {insight}
-            </motion.p>
-         ) : (
-            <p className="text-xs text-slate-500 leading-relaxed font-mono">
-              Aggregate demand is exceeding current capacity limits. Recommendation: Add more tables.
-            </p>
-         )}
-       </div>
-       <button 
-        onClick={generateInsight}
-        disabled={loading}
-        className="mt-4 w-full py-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 hover:bg-[#3ecf8e]/20 text-[#3ecf8e] text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2"
-       >
-         {loading ? "Processing..." : "Generate Live Optimization Plan"}
-       </button>
+        ) : error ? (
+          <div className="alert-danger" style={{ padding: '10px 12px' }}>
+            <p style={{ fontSize: 11 }}>{error}</p>
+          </div>
+        ) : insight ? (
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+            {insight}
+          </motion.p>
+        ) : (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, fontFamily: 'var(--font-mono)' }}>
+            Aggregate demand exceeds capacity limits. Recommendation: Add more tables.
+          </p>
+        )}
+      </div>
+      <button onClick={generateInsight} disabled={loading} className="btn-ghost w-full" style={{ fontSize: 10, letterSpacing: '0.10em', textTransform: 'uppercase', borderColor: 'rgba(62,207,142,0.18)', color: 'var(--color-emerald)' }}>
+        {loading ? 'Processing...' : 'Generate Optimization Plan'}
+      </button>
     </div>
   );
 }
+
 
 function Dashboard() {
   const { profile } = useAuth();
@@ -277,12 +270,12 @@ function Dashboard() {
   }, [profile?.active_store]);
 
   const stats = [
-    { label: 'Open Tables', value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', barColor: 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' },
-    { label: 'Seated Tables', value: statsData.occupied.value, total: statsData.occupied.total, icon: Users, color: 'text-[#3ecf8e]', bg: 'bg-[#3ecf8e]/10', barColor: 'bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.5)]' },
-    { label: 'Reserved Tables', value: statsData.reserved.value, total: statsData.reserved.total, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10', barColor: 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' },
-    { label: 'Billing Tables', value: statsData.billing.value, total: statsData.billing.total, icon: Receipt, color: 'text-yellow-500', bg: 'bg-yellow-500/10', barColor: 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' },
-    { label: 'Cleaning Tables', value: statsData.cleaning.value, total: statsData.cleaning.total, icon: Brush, color: 'text-cyan-500', bg: 'bg-cyan-500/10', barColor: 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]' },
-    { label: 'Wait Queue', value: statsData.waitlist.value, total: statsData.waitlist.total, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10', barColor: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' },
+    { label: 'Open Tables',     value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, accent: '#3ecf8e', accentDim: 'rgba(62,207,142,0.12)',  barColor: '#3ecf8e' },
+    { label: 'Seated Tables',  value: statsData.occupied.value,  total: statsData.occupied.total,  icon: Users,        accent: '#f43f5e', accentDim: 'rgba(244,63,94,0.12)',   barColor: '#f43f5e' },
+    { label: 'Reserved Tables',value: statsData.reserved.value,  total: statsData.reserved.total,  icon: Clock,        accent: '#f59e0b', accentDim: 'rgba(245,158,11,0.12)', barColor: '#f59e0b' },
+    { label: 'Billing Tables', value: statsData.billing.value,   total: statsData.billing.total,   icon: Receipt,      accent: '#8b5cf6', accentDim: 'rgba(139,92,246,0.12)',  barColor: '#8b5cf6' },
+    { label: 'Cleaning Tables',value: statsData.cleaning.value,  total: statsData.cleaning.total,  icon: Brush,        accent: '#06b6d4', accentDim: 'rgba(6,182,212,0.12)',   barColor: '#06b6d4' },
+    { label: 'Wait Queue',     value: statsData.waitlist.value,  total: statsData.waitlist.total,  icon: AlertCircle,  accent: '#6366f1', accentDim: 'rgba(99,102,241,0.12)',  barColor: '#6366f1' },
   ];
 
   const storeContext = {
@@ -294,112 +287,150 @@ function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="flex items-end justify-between">
+    <div style={{ paddingBottom: 40 }}>
+      {/* Dashboard Header */}
+      <div className="flex items-end justify-between" style={{ marginBottom: 28 }}>
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Executive Overview</h2>
-          <p className="text-slate-400 mt-1">Live restaurant network metrics and store operations.</p>
+          <div className="page-header" style={{ marginBottom: 0 }}>
+            <h2 className="page-title" style={{ fontSize: 26 }}>Executive Overview</h2>
+            <p className="page-subtitle">Live restaurant network metrics and store operations.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            <div className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-[10px] font-mono text-slate-400 uppercase tracking-widest font-bold">Store: {profile?.active_store || 'N/A'}</div>
-            <div className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-[10px] font-mono text-slate-400 uppercase tracking-widest font-bold">Shift: Dinner</div>
-          </div>
-          <div className="px-4 py-1.5 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] rounded text-xs font-bold font-mono">
-            LIVE SYNC ACTIVE
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="chip" style={{ fontFamily: 'var(--font-mono)' }}>Store: {profile?.active_store || 'N/A'}</span>
+          <span className="chip" style={{ fontFamily: 'var(--font-mono)' }}>Dinner Shift</span>
+          <span style={{
+            padding: '4px 12px', borderRadius: 8, fontSize: 10, fontWeight: 700,
+            fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.12em',
+            background: 'rgba(62,207,142,0.10)', border: '1px solid rgba(62,207,142,0.20)', color: 'var(--color-emerald)'
+          }}>
+            ● Live
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" style={{ marginBottom: 28 }}>
         {stats.map((stat, i) => (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
+            transition={{ delay: i * 0.07 }}
             key={stat.label}
-            className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-sm group hover:border-[#3ecf8e]/30 transition-all"
+            className="stat-card"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">{stat.label}</div>
-              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentColor]", stat.color)} />
+            {/* Top accent bar */}
+            <div className="stat-card-accent-bar" style={{ background: `linear-gradient(90deg, ${stat.accent}, ${stat.accent}88)` }} />
+
+            <div className="flex items-start justify-between" style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                {stat.label}
+              </div>
+              <div className="stat-icon" style={{ background: stat.accentDim, width: 28, height: 28, borderRadius: 8 }}>
+                <stat.icon size={14} style={{ color: stat.accent }} />
+              </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <div className={cn("text-3xl font-bold tracking-tight", stat.label === 'Seated Tables' ? "text-[#3ecf8e]" : "text-white")}>{stat.value}</div>
-              <div className="text-[10px] font-mono text-slate-500 uppercase">Cap: {stat.total}</div>
+
+            <div className="flex items-baseline justify-between" style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.04em', color: stat.accent, lineHeight: 1 }}>
+                {stat.value}
+              </div>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                /{stat.total}
+              </div>
             </div>
-             <div className="mt-4 h-1 bg-slate-800 rounded-full overflow-hidden">
-               <motion.div 
+
+            <div className="progress-track">
+              <motion.div
+                className="progress-fill"
                 initial={{ width: 0 }}
-                animate={{ width: stat.total > 0 ? `${(stat.value / stat.total) * 100}%` : '0%' }}
-                className={cn("h-full", stat.barColor)} 
-               />
+                animate={{ width: stat.total > 0 ? `${Math.min(100, (stat.value / stat.total) * 100)}%` : '0%' }}
+                transition={{ delay: i * 0.07 + 0.2, duration: 0.7 }}
+                style={{
+                  background: `linear-gradient(90deg, ${stat.barColor}, ${stat.barColor}cc)`,
+                  boxShadow: `0 0 8px ${stat.barColor}55`
+                }}
+              />
             </div>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <div className="xl:col-span-2 space-y-8">
-          <div className="bg-slate-900/30 border border-slate-800 rounded-2xl p-8 relative overflow-hidden h-[400px] shadow-2xl flex flex-col">
-             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e]" />
-                  Hourly Occupancy
-                </h3>
-                <div className="flex gap-2">
-                  <button className="px-2 py-0.5 rounded bg-slate-800 text-[9px] font-bold text-white border border-slate-700">6HR</button>
-                  <button className="px-2 py-0.5 rounded bg-slate-950 text-[9px] font-bold text-slate-500 border border-slate-800">12HR</button>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Charts column */}
+        <div className="xl:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Hourly Occupancy Chart */}
+          <div className="glass-card" style={{ padding: 24, height: 340, display: 'flex', flexDirection: 'column' }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-emerald)', display: 'inline-block', boxShadow: '0 0 8px var(--color-emerald)' }} />
+                Hourly Occupancy
+              </h3>
+              <div className="flex gap-1.5">
+                <button style={{ padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: 'rgba(62,207,142,0.12)', border: '1px solid rgba(62,207,142,0.22)', color: 'var(--color-emerald)', cursor: 'pointer', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>6HR</button>
+                <button style={{ padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>12HR</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 8px 8px', gap: 6 }}>
+              {[40, 60, 80, 70, 90, 50, 40, 20, 60, 95, 80, 50].map((h, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flex: 1, position: 'relative' }}
+                  className="group"
+                >
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${h}%` }}
+                    transition={{ delay: i * 0.05 + 0.3, duration: 0.6 }}
+                    style={{
+                      width: '100%', maxWidth: 16, borderRadius: 4,
+                      background: h > 80
+                        ? 'linear-gradient(180deg, #3ecf8e, #059669)'
+                        : h > 50
+                          ? 'linear-gradient(180deg, rgba(62,207,142,0.55), rgba(62,207,142,0.30))'
+                          : 'rgba(255,255,255,0.05)',
+                      boxShadow: h > 80 ? '0 0 12px rgba(62,207,142,0.30)' : 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{12 + i}h</span>
                 </div>
-             </div>
-             <div className="flex-1 flex items-end justify-between px-4 pb-4">
-                {[40, 60, 80, 70, 90, 50, 40, 20, 60, 95, 80, 50].map((h, i) => (
-                  <div key={i} className="flex flex-col items-center gap-4 group flex-1">
-                     <motion.div 
-                      initial={{ height: 0 }}
-                      animate={{ height: `${h}%` }}
-                      className={cn(
-                        "w-3 rounded transition-all relative",
-                        h > 80 ? "bg-[#3ecf8e] shadow-[0_0_15px_rgba(62,207,142,0.3)]" : h > 50 ? "bg-[#3ecf8e]/60" : "bg-slate-800"
-                      )}
-                     >
-                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#020617] text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-800 opacity-0 group-hover:opacity-100 transition-opacity text-[#3ecf8e]">
-                          {h}%
-                       </div>
-                     </motion.div>
-                     <span className="text-[9px] font-mono text-slate-600 group-hover:text-[#3ecf8e] transition-colors">
-                        {12 + i}h
-                     </span>
-                  </div>
-                ))}
-             </div>
+              ))}
+            </div>
           </div>
 
-          <div className="bg-slate-900/30 border border-slate-800 rounded-2xl p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-8 text-sm font-bold text-white uppercase tracking-widest">
-              <div className="flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]" />
-                 Section Occupancy
-              </div>
-              <div className="px-2 py-0.5 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] text-[9px]">REAL-TIME</div>
+          {/* Section Occupancy */}
+          <div className="glass-card" style={{ padding: 24 }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', boxShadow: '0 0 8px #f59e0b' }} />
+                Section Occupancy
+              </h3>
+              <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', background: 'rgba(62,207,142,0.10)', border: '1px solid rgba(62,207,142,0.18)', color: 'var(--color-emerald)' }}>
+                Real-time
+              </span>
             </div>
-            <div className="space-y-6 pb-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {sectionsOccupancy.map((section) => (
-                <div key={section.name} className="space-y-3">
-                  <div className="grid grid-cols-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    <span className="col-span-2 text-slate-200">{section.name}</span>
-                    <span className="text-right">{ section.seats } Seats</span>
-                    <span className="text-right text-[#3ecf8e]">{section.percentage}%</span>
+                <div key={section.name}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{section.name}</span>
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{section.seats} seats</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: section.percentage > 80 ? '#3ecf8e' : 'var(--text-secondary)' }}>{section.percentage}%</span>
+                    </div>
                   </div>
-                  <div className="h-1 bg-slate-950 rounded-full overflow-hidden">
-                     <motion.div 
+                  <div className="progress-track">
+                    <motion.div
+                      className="progress-fill"
                       initial={{ width: 0 }}
                       animate={{ width: `${section.percentage}%` }}
-                      className={cn(
-                        "h-full shadow-[0_0_10px_rgba(62,207,142,0.5)]",
-                        section.percentage > 80 ? "bg-[#3ecf8e]" : "bg-slate-600"
-                      )}
-                     />
+                      transition={{ duration: 0.8 }}
+                      style={{
+                        background: section.percentage > 80
+                          ? 'linear-gradient(90deg, #3ecf8e, #059669)'
+                          : 'linear-gradient(90deg, rgba(62,207,142,0.50), rgba(62,207,142,0.30))',
+                        boxShadow: section.percentage > 80 ? '0 0 10px rgba(62,207,142,0.30)' : 'none',
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -407,36 +438,45 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-[#0f172a]/80 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-md">
-            <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-              <Clock size={14} className="text-[#3ecf8e]" />
-              Operation Feed
-            </h3>
-            <div className="space-y-4">
-               {feedActivities.map((act, i) => (
-                 <motion.div 
-                  initial={{ opacity: 0, x: 20 }}
+        {/* Right column: Feed + AI */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Operation Feed */}
+          <div className="glass-card" style={{ padding: 22, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+              <Clock size={14} style={{ color: 'var(--color-emerald)' }} />
+              <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-secondary)' }}>
+                Operation Feed
+              </h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {feedActivities.map((act, i) => (
+                <motion.div
+                  initial={{ opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  key={act.id} 
-                  className="flex gap-4 p-3 rounded-xl hover:bg-white/[0.02] transition-colors group cursor-pointer"
-                 >
-                    <div className={cn("w-8 h-8 rounded-lg bg-[#020617] border border-slate-800 flex items-center justify-center shrink-0 group-hover:border-[#3ecf8e]/30 transition-all", act.color)}>
-                       <act.icon size={14} />
+                  transition={{ delay: i * 0.08 }}
+                  key={act.id}
+                  className="data-row"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                    background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <act.icon size={13} style={{ color: act.color.includes('blue') ? '#60a5fa' : act.color.includes('amber') ? '#f59e0b' : act.color.includes('green') ? '#22c55e' : 'var(--color-emerald)' }} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{act.guest}</span>
+                      <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', flexShrink: 0 }}>{act.time}</span>
                     </div>
-                    <div className="min-w-0">
-                       <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-white truncate">{act.guest}</span>
-                          <span className="text-[9px] font-mono text-slate-600 shrink-0">{act.time}</span>
-                       </div>
-                       <p className="text-[10px] text-slate-500 leading-tight mt-1 truncate">{act.desc}</p>
-                    </div>
-                 </motion.div>
-               ))}
-               <button className="w-full py-2 mt-2 bg-slate-950 border border-slate-800 rounded-lg text-[9px] font-bold text-slate-500 uppercase tracking-widest hover:text-white transition-all">
-                  View Comprehensive Logs
-               </button>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{act.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+              <button className="btn-ghost w-full" style={{ marginTop: 10, fontSize: 10, letterSpacing: '0.10em', textTransform: 'uppercase' }}>
+                View All Logs
+              </button>
             </div>
           </div>
 
@@ -449,18 +489,26 @@ function Dashboard() {
 
 function Placeholder({ name }: { name: string }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center bg-[#0f172a]/20 border border-slate-800 rounded-2xl border-dashed p-10 text-center shadow-inner">
-       <div className="w-20 h-20 bg-[#0f172a] rounded-3xl flex items-center justify-center text-slate-700 mb-6 border border-slate-800 shadow-[0_0_20px_rgba(62,207,142,0.05)]">
-          <BarChart size={40} className="text-[#3ecf8e]/40" />
-       </div>
-       <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">{name} Module</h2>
-       <p className="max-w-md text-slate-500 text-sm leading-relaxed mb-8">
-         This component is currently being initialized for your live Supabase environment. 
-         Stay tuned for real-time guest tracking and inventory integration.
-       </p>
-       <button className="bg-[#3ecf8e]/10 border border-[#3ecf8e]/40 text-[#3ecf8e] px-8 py-3 rounded-lg font-bold hover:bg-[#3ecf8e] hover:text-[#020617] transition-all active:scale-95 shadow-[0_0_15px_rgba(62,207,142,0.1)] uppercase tracking-widest text-[10px]">
-         Request Module Access
-       </button>
+    <div style={{
+      height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      textAlign: 'center', padding: 48, border: '1px dashed var(--border-subtle)', borderRadius: 20,
+      background: 'rgba(7,17,31,0.40)'
+    }}>
+      <div style={{
+        width: 64, height: 64, borderRadius: 18, marginBottom: 20,
+        background: 'rgba(62,207,142,0.08)', border: '1px solid rgba(62,207,142,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        <BarChart size={30} style={{ color: 'var(--color-emerald)', opacity: 0.7 }} />
+      </div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 10 }}>{name} Module</h2>
+      <p style={{ maxWidth: 360, color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6, marginBottom: 28 }}>
+        This component is being initialized for your live Supabase environment.
+        Stay tuned for real-time guest tracking and inventory integration.
+      </p>
+      <button className="btn-primary" style={{ textTransform: 'uppercase', letterSpacing: '0.10em' }}>
+        Request Module Access
+      </button>
     </div>
   );
 }
@@ -471,9 +519,18 @@ function MainApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
-        <div className="w-16 h-16 border-2 border-[#3ecf8e]/10 border-t-[#3ecf8e] rounded-full animate-spin mb-6" />
-        <p className="text-[#3ecf8e] font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Initializing TableMaître Suite</p>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 16,
+          background: 'linear-gradient(135deg, #3ecf8e 0%, #059669 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#040d18', fontWeight: 700, fontSize: 20,
+          boxShadow: '0 0 32px rgba(62,207,142,0.35), 0 4px 16px rgba(0,0,0,0.4)',
+        }}>
+          TM
+        </div>
+        <div style={{ width: 40, height: 40, border: '2px solid rgba(62,207,142,0.12)', borderTop: '2px solid #3ecf8e', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <p style={{ color: 'var(--color-emerald)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', fontSize: 10 }}>Initializing TableMaître Suite</p>
       </div>
     );
   }
@@ -493,13 +550,24 @@ function MainApp() {
 
     if (isRestricted && !isAdmin) {
       return (
-        <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-950/20 border border-slate-800/80 rounded-2xl border-dashed">
-          <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-500 mb-6 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-            <AlertCircle size={28} />
+        <div style={{
+          height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: 48, textAlign: 'center', border: '1px dashed rgba(244,63,94,0.20)',
+          borderRadius: 20, background: 'rgba(244,63,94,0.03)'
+        }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: '50%', marginBottom: 20,
+            background: 'rgba(244,63,94,0.10)', border: '1px solid rgba(244,63,94,0.22)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(244,63,94,0.15)'
+          }}>
+            <AlertCircle size={26} style={{ color: '#f43f5e' }} />
           </div>
-          <h3 className="text-sm font-black tracking-widest text-red-500 uppercase font-mono">⛔ Access Denied</h3>
-          <p className="text-[10px] text-slate-500 max-w-xs text-center mt-2 leading-relaxed uppercase tracking-tighter font-mono">
-            Your staff credential privilege ({profile?.role}) is not authorized to decapsulate this panel. Please contact the general owner or manager.
+          <h3 style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#f43f5e', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+            Access Denied
+          </h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 320, lineHeight: 1.6 }}>
+            Your role <strong style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>({profile?.role})</strong> does not have permission to access this panel. Contact your manager or owner.
           </p>
         </div>
       );

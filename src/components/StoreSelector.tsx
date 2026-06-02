@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Building2, ChevronRight, LogOut, Loader2, RefreshCw } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Building2, ChevronRight, LogOut, Loader2, RefreshCw, MapPin } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function StoreSelector() {
   const { profile, signOut, refreshProfile, loading, stores } = useAuth();
@@ -10,49 +10,78 @@ export default function StoreSelector() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 text-[#3ecf8e] animate-spin mb-4" />
-        <p className="text-[#3ecf8e] font-bold uppercase tracking-widest text-[10px]">Syncing Profile Data</p>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'var(--bg-deep)' }}>
+        {/* Orbs */}
+        <div className="bg-orb bg-orb-emerald animate-orb-1"
+          style={{ width: 600, height: 600, top: '-20%', right: '-10%', opacity: 0.6 }} />
+        <div className="bg-orb bg-orb-indigo animate-orb-2"
+          style={{ width: 500, height: 500, bottom: '-20%', left: '-10%', opacity: 0.5 }} />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center gap-5 relative z-10"
+        >
+          <div
+            style={{
+              width: 56, height: 56, borderRadius: 16,
+              background: 'linear-gradient(135deg, #3ecf8e 0%, #059669 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#040d18', fontWeight: 700, fontSize: 20,
+              boxShadow: '0 0 32px rgba(62,207,142,0.35), 0 4px 16px rgba(0,0,0,0.4)',
+            }}
+          >
+            TM
+          </div>
+          <Loader2 className="animate-spin" style={{ color: 'var(--color-emerald)' }} size={28} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em' }}>
+            Syncing Profile Data
+          </p>
+        </motion.div>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-6">
-        <div className="bg-red-500/10 border border-red-500/30 p-8 rounded-3xl max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Building2 className="text-red-500" size={32} />
+      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: 'var(--bg-deep)' }}>
+        <div className="bg-orb bg-orb-rose"
+          style={{ width: 500, height: 500, top: '-10%', right: '-10%', opacity: 0.5 }} />
+        <div className="modal-box p-8 max-w-md w-full text-center relative z-10">
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: 'rgba(244,63,94,0.12)', border: '1px solid rgba(244,63,94,0.22)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}>
+            <Building2 style={{ color: '#f43f5e' }} size={28} />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Profile Not Found</h2>
-          <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-            We couldn't retrieve your operational profile. This might be due to a synchronization delay or an incorrect database record.
+          <h2 className="text-xl font-bold mb-2">Profile Not Found</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
+            Could not retrieve your operational profile. This may be a sync delay or database record issue.
           </p>
-          
-          <div className="bg-[#020617] p-4 rounded-xl border border-slate-800 text-left mb-8 space-y-2">
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Diagnostic Info</p>
-            <div className="flex justify-between">
-              <span className="text-[10px] text-slate-600">User Email:</span>
-              <span className="text-[10px] text-slate-400 font-mono">{useAuth().user?.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[10px] text-slate-600">Context ID:</span>
-              <span className="text-[10px] text-slate-400 font-mono truncate ml-4" title={useAuth().user?.id}>{useAuth().user?.id?.substring(0, 12)}...</span>
-            </div>
+          <div style={{
+            background: 'var(--bg-deep)', padding: '12px 16px', borderRadius: 10,
+            border: '1px solid var(--border-subtle)', marginBottom: 20, textAlign: 'left'
+          }}>
+            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-muted)', marginBottom: 8 }}>
+              Diagnostic Info
+            </p>
+            {[
+              { label: 'User Email', value: useAuth().user?.email },
+              { label: 'Context ID', value: `${useAuth().user?.id?.substring(0, 12)}...` },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex justify-between" style={{ marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{value || '—'}</span>
+              </div>
+            ))}
           </div>
-
           <div className="flex flex-col gap-3">
-            <button 
-              onClick={() => refreshProfile()}
-              className="w-full py-3 bg-[#3ecf8e] text-[#020617] rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-[#3ecf8e]/90 transition-all flex items-center justify-center gap-2"
-            >
-              <RefreshCw size={14} className={loadingStore ? "animate-spin" : ""} />
+            <button onClick={() => refreshProfile()} className="btn-primary w-full py-3">
+              <RefreshCw size={14} className={loadingStore ? 'animate-spin' : ''} />
               Force Retry Sync
             </button>
-            <button 
-              onClick={() => signOut()}
-              className="w-full py-3 bg-slate-900 text-slate-400 rounded-xl font-bold uppercase tracking-widest text-[10px] border border-slate-800 hover:text-white transition-all"
-            >
+            <button onClick={() => signOut()} className="btn-ghost w-full py-3">
               Sign Out & Restart
             </button>
           </div>
@@ -61,20 +90,19 @@ export default function StoreSelector() {
     );
   }
 
-  const assignedStores = (profile?.assigned_stores || []).filter(storeId => {
-    const isSpecialStore = storeId !== '0301' && storeId !== '0302';
-    if (isSpecialStore) {
-      return stores.some(s => s.id === storeId);
-    }
-    return true;
-  }).map(storeId => {
-    const dbStore = stores.find(s => s.id === storeId);
-    return {
-      id: storeId,
-      name: dbStore ? dbStore.name : `Store ${storeId}`,
-      address: dbStore?.location || 'Local Venue'
-    };
-  });
+  const assignedStores = (profile?.assigned_stores || [])
+    .filter(storeId => {
+      const isSpecial = storeId !== '0301' && storeId !== '0302';
+      return isSpecial ? stores.some(s => s.id === storeId) : true;
+    })
+    .map(storeId => {
+      const dbStore = stores.find(s => s.id === storeId);
+      return {
+        id: storeId,
+        name: dbStore ? dbStore.name : `Store ${storeId}`,
+        address: dbStore?.location || 'Local Venue',
+      };
+    });
 
   const selectStore = async (storeId: string) => {
     if (!profile) return;
@@ -84,7 +112,6 @@ export default function StoreSelector() {
         .from('profiles')
         .update({ active_store: storeId })
         .eq('id', profile.id);
-
       if (error) throw error;
       await refreshProfile();
     } catch (err) {
@@ -95,70 +122,180 @@ export default function StoreSelector() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Glow Effect */}
-      <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-[#3ecf8e]/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-[#3ecf8e]/3 rounded-full blur-[120px] pointer-events-none" />
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
+      style={{ background: 'var(--bg-deep)' }}>
 
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
+      {/* Ambient Orbs */}
+      <div className="bg-orb bg-orb-emerald animate-orb-1"
+        style={{ width: 700, height: 700, top: '-20%', right: '-15%', opacity: 0.65 }} />
+      <div className="bg-orb bg-orb-indigo animate-orb-2"
+        style={{ width: 600, height: 600, bottom: '-20%', left: '-15%', opacity: 0.55 }} />
+
+      {/* Grid pattern */}
+      <div className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(62,207,142,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(62,207,142,0.02) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px'
+        }} />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
         className="w-full max-w-2xl relative z-10"
       >
-        <div className="flex items-center justify-between mb-12">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Select Location</h1>
-            <p className="text-slate-500 font-medium">Welcome, <span className="text-[#3ecf8e] font-mono">{profile.email}</span>. Choose a primary venue.</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: 'linear-gradient(135deg, #3ecf8e 0%, #059669 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#040d18', fontWeight: 700, fontSize: 17,
+                boxShadow: '0 0 24px rgba(62,207,142,0.30), 0 4px 12px rgba(0,0,0,0.4)',
+              }}>
+                TM
+              </div>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)', marginBottom: 2 }}>
+                  TableMaître
+                </p>
+                <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+                  Select Location
+                </h1>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Welcome, <span style={{ color: 'var(--color-emerald)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{profile.email}</span>
+              . Choose a venue to continue.
+            </p>
           </div>
-          <button 
+          <button
             onClick={() => signOut()}
-            className="p-3 text-slate-500 hover:text-white hover:bg-slate-900 rounded-xl transition-all border border-transparent hover:border-slate-800 shadow-xl"
+            className="btn-icon"
+            style={{ width: 40, height: 40 }}
             title="Sign Out"
           >
-            <LogOut size={20} />
+            <LogOut size={16} />
           </button>
         </div>
 
+        {/* Store Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {assignedStores.length > 0 ? (
-            assignedStores.map((store) => (
-              <button
-                key={store.id}
-                onClick={() => selectStore(store.id)}
-                disabled={loadingStore !== null}
-                className="group relative bg-[#0f172a]/40 border border-slate-800 p-6 rounded-2xl text-left hover:border-[#3ecf8e]/30 hover:bg-[#0f172a]/60 transition-all duration-500 overflow-hidden backdrop-blur-sm"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="p-3 bg-slate-900 rounded-xl group-hover:bg-[#3ecf8e]/10 group-hover:text-[#3ecf8e] transition-colors border border-slate-800">
-                    <Building2 size={24} />
+          <AnimatePresence>
+            {assignedStores.length > 0 ? (
+              assignedStores.map((store, idx) => (
+                <motion.button
+                  key={store.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.08, duration: 0.35 }}
+                  onClick={() => selectStore(store.id)}
+                  disabled={loadingStore !== null}
+                  className="glass-card text-left group"
+                  style={{ padding: 24, cursor: loadingStore ? 'not-allowed' : 'pointer' }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(62,207,142,0.28)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                    (e.currentTarget as HTMLElement).style.boxShadow = '0 16px 48px rgba(0,0,0,0.45), 0 0 24px rgba(62,207,142,0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                    (e.currentTarget as HTMLElement).style.boxShadow = '';
+                  }}
+                >
+                  <div className="flex items-start justify-between mb-5">
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: 'rgba(62,207,142,0.08)',
+                      border: '1px solid rgba(62,207,142,0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 200ms',
+                    }}
+                      className="group-hover:bg-[rgba(62,207,142,0.14)]"
+                    >
+                      <Building2 size={22} style={{ color: 'var(--color-emerald)' }} />
+                    </div>
+                    {loadingStore === store.id ? (
+                      <Loader2 className="animate-spin" style={{ color: 'var(--color-emerald)' }} size={18} />
+                    ) : (
+                      <ChevronRight
+                        size={18}
+                        style={{ color: 'var(--text-muted)', transition: 'all 200ms' }}
+                        className="group-hover:translate-x-1 group-hover:text-emerald-400"
+                      />
+                    )}
                   </div>
-                  {loadingStore === store.id ? (
-                    <Loader2 className="animate-spin text-[#3ecf8e]" size={18} />
-                  ) : (
-                    <ChevronRight className="text-slate-700 group-hover:translate-x-1 transition-transform group-hover:text-[#3ecf8e]" />
-                  )}
+
+                  <div>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em',
+                      color: 'var(--color-emerald)', display: 'block', marginBottom: 4
+                    }}>
+                      ID: {store.id}
+                    </span>
+                    <h3 style={{
+                      fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em',
+                      color: 'var(--text-primary)', marginBottom: 6, transition: 'color 200ms'
+                    }}
+                      className="group-hover:text-emerald-300"
+                    >
+                      {store.name}
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {store.address}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom border gradient on hover */}
+                  <div style={{
+                    position: 'absolute', inset: '0 0 0 0', borderRadius: 'inherit',
+                    background: 'linear-gradient(135deg, rgba(62,207,142,0.04) 0%, transparent 60%)',
+                    opacity: 0, transition: 'opacity 200ms', pointerEvents: 'none',
+                  }}
+                    className="group-hover:opacity-100"
+                  />
+                </motion.button>
+              ))
+            ) : (
+              <div
+                className="col-span-full py-20 text-center"
+                style={{
+                  background: 'rgba(7,17,31,0.60)', border: '1px dashed var(--border-subtle)',
+                  borderRadius: 20, backdropFilter: 'blur(12px)'
+                }}
+              >
+                <div style={{
+                  width: 56, height: 56, borderRadius: 14,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 16px', color: 'var(--text-muted)',
+                }}>
+                  <Building2 size={28} />
                 </div>
-                <div className="mt-6">
-                  <span className="text-[10px] font-bold text-[#3ecf8e] uppercase tracking-[0.2em] leading-none mb-2 block">STORE IDENTIFIER: {store.id}</span>
-                  <h3 className="text-xl font-bold text-white mt-1 group-hover:text-[#3ecf8e] transition-colors">{store.name}</h3>
-                  <p className="text-sm text-slate-500 mt-2 font-mono">{store.address}</p>
-                </div>
-                {/* Subtle highlight effect */}
-                <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[#3ecf8e]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center bg-[#0f172a]/20 border border-dashed border-slate-800 rounded-3xl backdrop-blur-sm">
-              <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-slate-700 mx-auto mb-4 border border-slate-800">
-                <Building2 size={32} />
+                <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  No stores assigned
+                </p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 300, margin: '0 auto' }}>
+                  Contact your administrator to grant venue permissions.
+                </p>
               </div>
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">No stores assigned</p>
-              <p className="text-sm text-slate-600 max-w-xs mx-auto">Please contact system administrator to grant venue permissions.</p>
-            </div>
-          )}
+            )}
+          </AnimatePresence>
         </div>
 
-        <p className="mt-12 text-center text-slate-600 text-[10px] uppercase tracking-[0.22em] font-bold">
+        <p style={{
+          marginTop: 48, textAlign: 'center', fontSize: 10, fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-muted)'
+        }}>
           TableMaître Enterprise Suite &bull; V4 Revision
         </p>
       </motion.div>

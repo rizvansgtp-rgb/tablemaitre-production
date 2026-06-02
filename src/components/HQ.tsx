@@ -46,8 +46,8 @@ export default function HQ() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Operations Dashboard</h2>
-          <p className="text-slate-500 mt-1">Unified metrics across the entire restaurant network.</p>
+          <h2 className="page-title">Operations Dashboard</h2>
+          <p className="page-subtitle">Unified metrics across the entire restaurant network.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] rounded text-[10px] font-bold font-mono tracking-widest uppercase">

@@ -331,8 +331,8 @@ export default function Reports() {
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Live Metrics & Analytics</h2>
-          <p className="text-slate-500 mt-1 font-mono text-xs uppercase tracking-wider">Historical aggregate databases.</p>
+          <h2 className="page-title">Live Metrics & Analytics</h2>
+          <p className="page-subtitle">Historical aggregate databases.</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -433,7 +433,7 @@ export default function Reports() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Charts - Hourly Reservation Load */}
             <div className="lg:col-span-2 space-y-8">
-              <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl h-[380px] flex flex-col">
+              <div className="glass-card" style={{ padding: 24, height: 380, display: 'flex', flexDirection: 'column' }}>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e]" />
@@ -461,7 +461,7 @@ export default function Reports() {
               </div>
 
               {/* Table Occupancy / Diagnostics */}
-              <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col justify-between">
+              <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />

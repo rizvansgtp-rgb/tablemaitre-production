@@ -454,8 +454,8 @@ export default function Reservations() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Reservation Intel</h2>
-          <p className="text-slate-500 mt-1">Manage network bookings and guest arrivals.</p>
+          <h2 className="page-title">Reservation Intel</h2>
+          <p className="page-subtitle">Manage network bookings and guest arrivals.</p>
         </div>
         <button 
           onClick={handleCreateNewClick}
