@@ -4,20 +4,8 @@ import { supabase } from '../lib/supabase';
 import { Building2, ChevronRight, LogOut, Loader2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 
-const STORES = [
-  { id: '0301', name: 'Downtown flagship', address: '123 Main St' },
-  { id: '0302', name: 'Harbor Lounge', address: '45 Dockside Ave' },
-  { id: '0303', name: 'Skyline Terrace', address: '88 High Rise Way' },
-  { id: '0304', name: 'Meadow Café', address: '12 Green Park' },
-  { id: '0305', name: 'Oceanic Grill', address: '9 Beach Road' },
-  { id: '0306', name: 'Bistro 0306', address: '55 Pine St' },
-  { id: '0307', name: 'Cellar Bar', address: '2 Underground Lane' },
-  { id: '0308', name: 'Palm Grove', address: '77 Resort Blvd' },
-  { id: '0309', name: 'Vista Point', address: '1 Mountain Ridge' },
-];
-
 export default function StoreSelector() {
-  const { profile, signOut, refreshProfile, loading } = useAuth();
+  const { profile, signOut, refreshProfile, loading, stores } = useAuth();
   const [loadingStore, setLoadingStore] = useState<string | null>(null);
 
   if (loading) {
@@ -73,9 +61,19 @@ export default function StoreSelector() {
     );
   }
 
-  const assignedStores = STORES.filter(s => {
-    if (!profile || !profile.assigned_stores || !Array.isArray(profile.assigned_stores)) return false;
-    return profile.assigned_stores.includes(s.id);
+  const assignedStores = (profile?.assigned_stores || []).filter(storeId => {
+    const isSpecialStore = storeId !== '0301' && storeId !== '0302';
+    if (isSpecialStore) {
+      return stores.some(s => s.id === storeId);
+    }
+    return true;
+  }).map(storeId => {
+    const dbStore = stores.find(s => s.id === storeId);
+    return {
+      id: storeId,
+      name: dbStore ? dbStore.name : `Store ${storeId}`,
+      address: dbStore?.location || 'Local Venue'
+    };
   });
 
   const selectStore = async (storeId: string) => {

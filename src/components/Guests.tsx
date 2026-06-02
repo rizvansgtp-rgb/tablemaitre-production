@@ -318,7 +318,7 @@ export default function Guests() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Guest Intelligence</h2>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Guest CRM</h2>
           <p className="text-slate-500 mt-1">High-fidelity guest loyalty and preference tracking.</p>
         </div>
         <button 
@@ -602,7 +602,7 @@ export default function Guests() {
                     onChange={(e) => setNationality(e.target.value)}
                     className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#3ecf8e] font-mono"
                   >
-                    <option value="SG">Singapore (Local HQ)</option>
+                    <option value="SG">Local HQ</option>
                     <option value="US">United States (US)</option>
                     <option value="UK">United Kingdom (UK)</option>
                     <option value="EU">European Union (EU)</option>

@@ -292,17 +292,17 @@ export default function FloorPlan() {
     } else if (current === 'occupied') {
       if (status === 'available' || status === 'reserved' || status === 'cleaning') {
         isBlocked = true;
-        message = `Invalid Shift: An occupied table must request bill first.`;
+        message = `Invalid Shift: A seated table must request bill first.`;
       }
     } else if (current === 'billing') {
       if (status === 'available' || status === 'reserved' || status === 'occupied') {
         isBlocked = true;
-        message = `Invalid Shift: A table in billing must transition to cleaning before it can be occupied, reserved, or opened.`;
+        message = `Invalid Shift: A table in billing must transition to cleaning before it can be seated, reserved, or opened.`;
       }
     } else if (current === 'cleaning') {
       if (status === 'reserved' || status === 'occupied' || status === 'billing') {
         isBlocked = true;
-        message = `Invalid Shift: A table in cleaning must be opened (made available) before it can be reserved, occupied, or request bill.`;
+        message = `Invalid Shift: A table in cleaning must be opened (made Open) before it can be reserved, seated, or request bill.`;
       }
     }
 
@@ -454,7 +454,7 @@ export default function FloorPlan() {
 
   const handleAddTable = async () => {
     if (profile?.role === 'waiter') {
-      alert("Unauthorized: Only hosts, managers, and owners can configure resources.");
+      alert("Unauthorized: Only hosts, managers, and owners can configure floor.");
       return;
     }
 
@@ -547,12 +547,12 @@ export default function FloorPlan() {
     if (!destTable) return;
     
     if (destTable.status !== 'available') {
-      alert("Transfer Blocked: Destination table must be available/open.");
+      alert("Transfer Blocked: Destination table must be open.");
       return;
     }
 
     if (selectedTable.status !== 'occupied') {
-      alert("Transfer Blocked: Source table must be occupied.");
+      alert("Transfer Blocked: Source table must be seated.");
       return;
     }
 
@@ -968,7 +968,7 @@ export default function FloorPlan() {
             className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner touch-none select-none"
           >
           <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
-            Primary Layout Workspace
+            Floor Plan
           </div>
            
           <motion.div 
@@ -1013,10 +1013,10 @@ export default function FloorPlan() {
                 <div className="absolute inset-4 border border-slate-800/20 rounded-2xl pointer-events-none border-dashed" />
                 
                 <div className="absolute top-8 left-8 right-8 flex justify-between text-[10px] font-mono font-bold text-slate-800 select-none pointer-events-none">
-                  <span>SECTOR-A</span>
-                  <span>SECTOR-B</span>
-                  <span>SECTOR-C</span>
-                  <span>SECTOR-D</span>
+                  <span>SECTION-A</span>
+                  <span>SECTION-B</span>
+                  <span>SECTION-C</span>
+                  <span>SECTION-D</span>
                 </div>
               </>
             )}
@@ -1153,7 +1153,7 @@ export default function FloorPlan() {
                         selectedTable.status === 'cleaning' && "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
                         selectedTable.status === 'blocked' && "bg-slate-700/15 text-slate-400 border-slate-700/20"
                       )}>
-                        {selectedTable.status}
+                        {selectedTable.status === 'available' ? 'Open' : selectedTable.status === 'occupied' ? 'Seated' : selectedTable.status}
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 font-mono font-bold uppercase tracking-[0.2em] mt-1">
@@ -1384,7 +1384,7 @@ export default function FloorPlan() {
                     {selectedTable.status === 'occupied' && (
                       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-3 font-mono mt-4">
                         <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] select-none text-slate-400">Section Table Transfer Console</h4>
-                        <p className="text-[9px] text-slate-600 leading-tight uppercase font-medium">Relocate active dining session to another available table.</p>
+                        <p className="text-[9px] text-slate-600 leading-tight uppercase font-medium">Relocate active dining session to another open table.</p>
                         
                         <div className="space-y-3">
                           <select
@@ -1408,7 +1408,7 @@ export default function FloorPlan() {
                             className="w-full bg-[#020617] border border-slate-800 rounded px-2.5 py-2 text-[10px] text-slate-200 focus:border-[#3ecf8e]/50 outline-none uppercase font-bold"
                           >
                             <option value="cleaning">Send Source Table to Cleaning</option>
-                            <option value="available">Make Source Table Available</option>
+                            <option value="available">Make Source Table Open</option>
                           </select>
 
                           <button
@@ -1427,7 +1427,7 @@ export default function FloorPlan() {
                   <form className="space-y-4" onSubmit={handleUpdateTableProperties}>
                     <div className="space-y-4">
                       <div>
-                        <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Table Unit ID / Number</label>
+                        <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 font-mono">Table Number</label>
                         <input 
                           type="text"
                           required
@@ -1463,7 +1463,7 @@ export default function FloorPlan() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Establishment Sector</label>
+                        <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1.5 font-mono">Floor Section</label>
                         <select 
                           value={editFormData.section_id || ''}
                           onChange={(e) => setEditFormData({ ...editFormData, section_id: e.target.value })}

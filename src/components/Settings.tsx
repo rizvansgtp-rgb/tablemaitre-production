@@ -50,7 +50,7 @@ export default function Settings() {
       <div className="flex items-end justify-between">
         <div>
           <h2 className="text-3xl font-bold text-white tracking-tight">System Configuration</h2>
-          <p className="text-slate-500 mt-1">Manage workspace preferences, security protocols, and node metadata.</p>
+          <p className="text-slate-500 mt-1">Manage restaurant preferences, security protocols, and store metadata.</p>
         </div>
         <button className="bg-[#3ecf8e] text-[#020617] px-6 py-2.5 rounded text-[10px] uppercase tracking-[0.2em] font-bold hover:shadow-[0_0_20px_rgba(62,207,142,0.4)] transition-all flex items-center gap-2">
           <Save size={14} />
@@ -66,7 +66,7 @@ export default function Settings() {
             { id: 'security', label: 'Identity & Access', icon: Shield },
             { id: 'appearance', label: 'Visual Interface', icon: Palette },
             { id: 'notifications', label: 'Event Protocol', icon: Bell },
-            { id: 'database', label: 'Telemetry Sync', icon: Database },
+            { id: 'database', label: 'Sync Status', icon: Database },
           ].map(tab => (
             <button
               key={tab.id}
@@ -162,10 +162,10 @@ export default function Settings() {
                         <span className="text-[10px] font-mono text-slate-500 uppercase">Renews in 12 days</span>
                      </div>
                      <h4 className="text-2xl font-bold text-white mb-2">$499.00 <span className="text-sm font-normal text-slate-500">/ month</span></h4>
-                     <p className="text-xs text-slate-400 mb-8">Unlimited store nodes, AI strategic analysis, and priority telemetry sync.</p>
+                     <p className="text-xs text-slate-400 mb-8">Unlimited store nodes, AI strategic analysis, and priority sync status.</p>
                      
                      <div className="grid grid-cols-2 gap-4 mb-8">
-                        {['99.9% SLI Guarantee', 'Advanced AI Insights', 'Unlimited Staff', 'Multi-Store HQ Access'].map(feature => (
+                        {['99.9% SLI Guarantee', 'Advanced AI Insights', 'Unlimited Staff', 'Multi-Store Access'].map(feature => (
                           <div key={feature} className="flex items-center gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-tight">
                              <div className="w-4 h-4 rounded-full bg-[#3ecf8e]/20 flex items-center justify-center text-[#3ecf8e]">
                                 <Check size={10} />
@@ -187,7 +187,7 @@ export default function Settings() {
                      {[
                        { label: 'Active Store Nodes', used: 4, total: 'Unlimited', percentage: 20 },
                        { label: 'Monthly AI Computes', used: 1242, total: 5000, percentage: 25 },
-                       { label: 'Telemetry Storage', used: '1.2 GB', total: '10 GB', percentage: 12 },
+                       { label: 'Sync Logs Storage', used: '1.2 GB', total: '10 GB', percentage: 12 },
                      ].map(metric => (
                        <div key={metric.label} className="space-y-2">
                           <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
@@ -236,7 +236,7 @@ export default function Settings() {
                   </div>
                </SettingSection>
 
-               <SettingSection title="Network Sync" description="Last successful telemetry handshakes." icon={RefreshCw}>
+               <SettingSection title="Sync Status" description="Last successful synchronization status." icon={RefreshCw}>
                   <div className="bg-[#020617] border border-slate-800 rounded divide-y divide-slate-800/50 overflow-hidden">
                      {[
                        { event: 'Database Snapshot', timestamp: '2 mins ago', status: 'OK' },
@@ -286,10 +286,10 @@ export default function Settings() {
 
           {activeTab === 'database' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-               <SettingSection title="Telemetry Offline Queue" description="Overview of pending operations synchronized when internet connectivity is established." icon={Database}>
+               <SettingSection title="Offline Sync Status" description="Overview of pending operations synchronized when internet connectivity is established." icon={Database}>
                   <div className="p-5 rounded-2xl bg-[#3ecf8e]/5 border border-[#3ecf8e]/20">
                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">Queue Status</span>
+                        <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">Sync Status</span>
                         <div className="flex items-center gap-2">
                            <button 
                              onClick={() => {
@@ -309,7 +309,7 @@ export default function Settings() {
                              }}
                              className="px-3 py-1.5 bg-[#3ecf8e] text-[#020617] rounded text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer"
                            >
-                              Force Telemetry Sync
+                              Force Sync
                            </button>
                         </div>
                      </div>

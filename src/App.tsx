@@ -23,7 +23,9 @@ import {
   BarChart,
   Map,
   Sparkles,
-  Loader2
+  Loader2,
+  Receipt,
+  Brush
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -90,7 +92,7 @@ function AIInsight({ storeContext }: { storeContext: any }) {
             </motion.p>
          ) : (
             <p className="text-xs text-slate-500 leading-relaxed font-mono">
-              Aggregate demand at Singapore ST-0303 is exceeding current capacity limits. Recommendation: Deploy additional host node.
+              Aggregate demand is exceeding current capacity limits. Recommendation: Add more tables.
             </p>
          )}
        </div>
@@ -111,9 +113,11 @@ function Dashboard() {
     available: { value: 12, total: 20 },
     occupied: { value: 8, total: 20 },
     reserved: { value: 5, total: 15 },
+    billing: { value: 0, total: 20 },
+    cleaning: { value: 0, total: 20 },
     waitlist: { value: 3, total: 10 }
   });
-  const [sectionsIntensity, setSectionsIntensity] = useState<Array<{ name: string, seats: number, percentage: number }>>([
+  const [sectionsOccupancy, setSectionsOccupancy] = useState<Array<{ name: string, seats: number, percentage: number }>>([
     { name: 'Indoor Main', seats: 24, percentage: 85 },
     { name: 'Outdoor Terrace', seats: 16, percentage: 45 },
     { name: 'VIP Lounge', seats: 8, percentage: 90 },
@@ -122,7 +126,7 @@ function Dashboard() {
   const [feedActivities, setFeedActivities] = useState<any[]>([
     { id: 'act-1', type: 'checkin', guest: 'Michael S.', time: '2m ago', desc: 'Party of 4 seated in Terrace Section', icon: Map, color: 'text-blue-400' },
     { id: 'act-2', type: 'booking', guest: 'Sarah L.', time: '14m ago', desc: 'Digital reservation confirmed for 20:30', icon: Calendar, color: 'text-[#3ecf8e]' },
-    { id: 'act-3', type: 'alert', guest: 'Waitlist Breach', time: '22m ago', desc: 'Avg wait time for 2P exceeded 45m limit', icon: AlertCircle, color: 'text-amber-500' },
+    { id: 'act-3', type: 'alert', guest: 'Wait Queue Breach', time: '22m ago', desc: 'Avg wait time for 2P exceeded 45m limit', icon: AlertCircle, color: 'text-amber-500' },
     { id: 'act-4', type: 'payment', guest: 'Table 14', time: '35m ago', desc: 'Final check encrypted and processed successfully', icon: TrendingUp, color: 'text-green-500' }
   ]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +153,9 @@ function Dashboard() {
         const tableList = tables || [];
         const totalTablesCount = tableList.length;
         const availableCount = tableList.filter(t => t.status === 'available').length;
-        const occupiedCount = tableList.filter(t => t.status === 'occupied' || t.status === 'billing').length;
+        const occupiedCount = tableList.filter(t => t.status === 'occupied').length;
+        const billingCount = tableList.filter(t => t.status === 'billing').length;
+        const cleaningCount = tableList.filter(t => t.status === 'cleaning').length;
 
         // 2. Fetch reservations
         const { count: reservedCount, error: resError } = await supabase
@@ -183,7 +189,7 @@ function Dashboard() {
         if (sectionsError) throw sectionsError;
 
         const sectionList = sections || [];
-        const intensity = sectionList.map(sec => {
+        const occupancy = sectionList.map(sec => {
           const secTables = tableList.filter(t => t.section_id === sec.id);
           const totalSeats = secTables.reduce((sum, t) => sum + (t.capacity || 0), 0);
           const occupiedTables = secTables.filter(t => t.status === 'occupied' || t.status === 'billing');
@@ -244,10 +250,12 @@ function Dashboard() {
             available: { value: availableCount, total: totalTablesVal },
             occupied: { value: occupiedCount, total: totalTablesVal },
             reserved: { value: reservedVal, total: Math.max(15, reservedVal) },
+            billing: { value: billingCount, total: totalTablesVal },
+            cleaning: { value: cleaningCount, total: totalTablesVal },
             waitlist: { value: waitlistVal, total: Math.max(10, waitlistVal) }
           });
-          if (intensity.length > 0) {
-            setSectionsIntensity(intensity);
+          if (occupancy.length > 0) {
+            setSectionsOccupancy(occupancy);
           }
           if (mappedActivities.length > 0) {
             setFeedActivities(mappedActivities);
@@ -269,10 +277,12 @@ function Dashboard() {
   }, [profile?.active_store]);
 
   const stats = [
-    { label: 'Available', value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { label: 'Occupied', value: statsData.occupied.value, total: statsData.occupied.total, icon: Users, color: 'text-[#3ecf8e]', bg: 'bg-[#3ecf8e]/10' },
-    { label: 'Reserved', value: statsData.reserved.value, total: statsData.reserved.total, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Waitlist', value: statsData.waitlist.value, total: statsData.waitlist.total, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { label: 'Open Tables', value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', barColor: 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' },
+    { label: 'Seated Tables', value: statsData.occupied.value, total: statsData.occupied.total, icon: Users, color: 'text-[#3ecf8e]', bg: 'bg-[#3ecf8e]/10', barColor: 'bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.5)]' },
+    { label: 'Reserved Tables', value: statsData.reserved.value, total: statsData.reserved.total, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10', barColor: 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' },
+    { label: 'Billing Tables', value: statsData.billing.value, total: statsData.billing.total, icon: Receipt, color: 'text-yellow-500', bg: 'bg-yellow-500/10', barColor: 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' },
+    { label: 'Cleaning Tables', value: statsData.cleaning.value, total: statsData.cleaning.total, icon: Brush, color: 'text-cyan-500', bg: 'bg-cyan-500/10', barColor: 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]' },
+    { label: 'Wait Queue', value: statsData.waitlist.value, total: statsData.waitlist.total, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10', barColor: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' },
   ];
 
   const storeContext = {
@@ -280,7 +290,7 @@ function Dashboard() {
     occupancy: statsData.occupied.value,
     totalTables: statsData.available.total,
     waitlist: statsData.waitlist.value,
-    sections: sectionsIntensity.map(s => s.name)
+    sections: sectionsOccupancy.map(s => s.name)
   };
 
   return (
@@ -301,7 +311,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {stats.map((stat, i) => (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -315,14 +325,14 @@ function Dashboard() {
               <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentColor]", stat.color)} />
             </div>
             <div className="flex items-baseline justify-between">
-              <div className={cn("text-3xl font-bold tracking-tight", i === 1 ? "text-[#3ecf8e]" : "text-white")}>{stat.value}</div>
+              <div className={cn("text-3xl font-bold tracking-tight", stat.label === 'Seated Tables' ? "text-[#3ecf8e]" : "text-white")}>{stat.value}</div>
               <div className="text-[10px] font-mono text-slate-500 uppercase">Cap: {stat.total}</div>
             </div>
              <div className="mt-4 h-1 bg-slate-800 rounded-full overflow-hidden">
                <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: stat.total > 0 ? `${(stat.value / stat.total) * 100}%` : '0%' }}
-                className={cn("h-full", i === 1 ? "bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.5)]" : "bg-slate-600")} 
+                className={cn("h-full", stat.barColor)} 
                />
             </div>
           </motion.div>
@@ -369,12 +379,12 @@ function Dashboard() {
             <div className="flex items-center justify-between mb-8 text-sm font-bold text-white uppercase tracking-widest">
               <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]" />
-                 Section Intensity
+                 Section Occupancy
               </div>
               <div className="px-2 py-0.5 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] text-[9px]">REAL-TIME</div>
             </div>
             <div className="space-y-6 pb-4">
-              {sectionsIntensity.map((section) => (
+              {sectionsOccupancy.map((section) => (
                 <div key={section.name} className="space-y-3">
                   <div className="grid grid-cols-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                     <span className="col-span-2 text-slate-200">{section.name}</span>

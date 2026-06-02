@@ -18,7 +18,9 @@ import {
   Bookmark,
   Brush,
   Globe,
-  Loader2
+  Loader2,
+  Receipt,
+  AlertCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -67,18 +69,33 @@ const getLocalDateString = (d: Date = new Date()) => {
 };
 
 export default function Reports() {
-  const { profile } = useAuth();
+  const { profile, stores } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [guests, setGuests] = useState<GuestCard[]>([]);
+  const [waitlist, setWaitlist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const allowedStores = (profile?.assigned_stores || []).filter(storeId => {
+    const isSpecialStore = storeId !== '0301' && storeId !== '0302';
+    if (isSpecialStore) {
+      return stores.some(s => s.id === storeId);
+    }
+    return true;
+  }).map(storeId => {
+    const dbStore = stores.find(s => s.id === storeId);
+    return {
+      id: storeId,
+      name: dbStore ? dbStore.name : `Store ${storeId}`
+    };
+  });
+
+  const allowedStoreIds = allowedStores.map(s => s.id);
 
   // Filters State
   const [activeStore, setActiveStore] = useState(profile?.active_store || '0301');
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('AllTime'); // Today, Tomorrow, Yesterday, Last7D, AllTime
-
-  const stores = ['0301', '0302', '0303', '0304', '0305', '0306', '0307', '0308', '0309'];
 
   useEffect(() => {
     fetchTelemetry();
@@ -126,6 +143,17 @@ export default function Reports() {
       }
       setGuests(guestData);
 
+      // Load Waitlist
+      let waitlistData: any[] = [];
+      if (isSupabaseConfigured) {
+        const { data } = await supabase.from('waitlist').select('*');
+        if (data) waitlistData = data;
+      } else {
+        const local = localStorage.getItem('table_maitre_waitlist');
+        if (local) waitlistData = JSON.parse(local);
+      }
+      setWaitlist(waitlistData);
+
     } catch (err) {
       console.error("Error loading telemetry for reports:", err);
     } finally {
@@ -136,8 +164,10 @@ export default function Reports() {
   // Filter computation using accurate locale dates
   const filteredRes = reservations.filter(res => {
     // 1. Branch/Store Filter
-    if (activeStore !== 'AllBranches' && res.store_id !== activeStore) {
-      return false;
+    if (activeStore !== 'AllBranches') {
+      if (res.store_id !== activeStore) return false;
+    } else {
+      if (!allowedStoreIds.includes(res.store_id)) return false;
     }
 
     // 2. Status Filter
@@ -172,7 +202,12 @@ export default function Reports() {
     return true;
   });
 
-  const activeStoreTables = tables.filter(t => activeStore === 'AllBranches' || t.store_id === activeStore);
+  const activeStoreTables = tables.filter(t => {
+    if (activeStore !== 'AllBranches') {
+      return t.store_id === activeStore;
+    }
+    return allowedStoreIds.includes(t.store_id);
+  });
 
   // METRICS CALCULATIONS
   // Today reservations
@@ -223,11 +258,15 @@ export default function Reports() {
   const availableTables = activeStoreTables.filter(t => t.status === 'available').length;
   const reservedTables = activeStoreTables.filter(t => t.status === 'reserved').length;
   const cleaningTables = activeStoreTables.filter(t => t.status === 'cleaning').length;
+  const billingTables = activeStoreTables.filter(t => t.status === 'billing').length;
+  
+  // Wait Queue
+  const activeWaitQueue = waitlist.filter(w => (activeStore === 'AllBranches' || w.store_id === activeStore) && w.status === 'waiting').length;
 
   // Table occupancy percentage
   const totalTablesCount = activeStoreTables.length;
   const tableOccupancyPercent = totalTablesCount > 0 
-    ? Math.round((occupiedTables / totalTablesCount) * 100) 
+    ? Math.round(((occupiedTables + billingTables) / totalTablesCount) * 100) 
     : 0;
 
   // CSV Exporter
@@ -236,33 +275,35 @@ export default function Reports() {
     const rows = filteredRes.map(r => [
       r.id,
       r.store_id,
-      `"${r.guest_name.replace(/"/g, '""')}"`,
+      r.guest_name,
       r.phone,
       r.adults ?? r.party_size ?? 0,
       r.kids ?? 0,
       (r.adults ?? r.party_size ?? 0) + (r.kids ?? 0),
       r.datetime,
       r.status,
-      `"${(r.notes || '').replace(/"/g, '""')}"`
+      r.notes ?? ''
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const csvContent = [headers.join(','), ...rows.map(row => row.map(val => `"${val}"`).join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `TableMaitre_Metrics_${activeStore}_${dateFilter}.csv`);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `TableMaitre_Report_${activeStore}_${getLocalDateString(new Date())}.csv`);
+    link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   // Branch statistics payload
-  const branchData = stores.map(storeId => {
+  const branchData = allowedStores.map(st => {
     return {
-      storeId: `ST-${storeId}`,
-      bookings: reservations.filter(r => r.store_id === storeId).length,
-      capacity: tables.filter(t => t.store_id === storeId).reduce((s, t) => s + t.capacity, 0)
+      storeId: st.id,
+      storeName: st.name,
+      bookings: reservations.filter(r => r.store_id === st.id).length,
+      capacity: tables.filter(t => t.store_id === st.id).reduce((s, t) => s + t.capacity, 0)
     };
   });
 
@@ -290,10 +331,10 @@ export default function Reports() {
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Telemetry & Analytics</h2>
-          <p className="text-slate-500 mt-1">Real-time operational summaries and localized guest audits.</p>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Live Metrics & Analytics</h2>
+          <p className="text-slate-500 mt-1 font-mono text-xs uppercase tracking-wider">Historical aggregate databases.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-3">
           <button 
             onClick={exportCSV}
             className="bg-slate-900 border border-slate-800 text-slate-400 px-4 py-2 rounded text-[10px] uppercase tracking-widest font-bold hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow-sm"
@@ -305,10 +346,10 @@ export default function Reports() {
           <button 
              onClick={fetchTelemetry}
              disabled={loading}
-             className="bg-slate-900 border border-slate-800 text-[#3ecf8e] px-4 py-2 rounded text-[10px] uppercase tracking-widest font-bold hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+             className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer shadow-xl"
           >
              {loading ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
-             Fetch Node Telemetry
+             Refresh Metrics
           </button>
         </div>
       </div>
@@ -323,7 +364,7 @@ export default function Reports() {
             className="w-full bg-[#020617] border border-slate-800 rounded px-3 py-1.5 text-xs text-white uppercase font-mono tracking-wider focus:outline-none focus:border-[#3ecf8e]"
           >
             <option value="AllBranches">All Branches (Global Network)</option>
-            {stores.map(id => <option key={id} value={id}>Singapore ST-{id}</option>)}
+            {allowedStores.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
           </select>
         </div>
 
@@ -368,27 +409,25 @@ export default function Reports() {
       {loading ? (
         <div className="h-96 flex flex-col items-center justify-center gap-3">
           <Loader2 className="animate-spin text-[#3ecf8e]" size={36} />
-          <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Aggregating telemetry tables...</p>
+          <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Aggregating metrics...</p>
         </div>
       ) : (
         <>
-          {/* Bento-grid of 14 Telemetry Performance metrics */}
+          {/* Bento-grid of 13 Performance metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            <PerformanceCard label="Today Bookings" value={todayReservationsTotal} icon={Calendar} color="text-emerald-400" />
-            <PerformanceCard label="Tomorrow" value={tomorrowReservationsTotal} icon={CalendarDays} color="text-sky-400" />
-            <PerformanceCard label="Yesterday" value={yesterdayReservationsTotal} icon={TrendingUp} color="text-purple-400" />
+            <PerformanceCard label="Open Tables" value={availableTables} icon={CheckCircle2} color="text-green-500" />
+            <PerformanceCard label="Seated Tables" value={occupiedTables} icon={Bookmark} color="text-[#3ecf8e]" />
+            <PerformanceCard label="Reserved Tables" value={reservedTables} icon={Clock} color="text-blue-400" />
+            <PerformanceCard label="Billing Tables" value={billingTables} icon={Receipt} color="text-yellow-400" />
+            <PerformanceCard label="Cleaning Tables" value={cleaningTables} icon={Brush} color="text-cyan-400" />
+            <PerformanceCard label="Wait Queue" value={activeWaitQueue} icon={AlertCircle} color="text-amber-500" />
+            <PerformanceCard label="Total Covers" value={totalPax} icon={Users} color="text-[#3ecf8e]" />
             <PerformanceCard label="Adult Pax" value={totalAdults} icon={Users} color="text-[#3ecf8e]" />
             <PerformanceCard label="Kids Pax" value={totalKids} icon={Users} color="text-pink-400" />
-            <PerformanceCard label="Total covers" value={totalPax} icon={Users} color="text-[#3ecf8e]" />
             <PerformanceCard label="Walk-ins" value={walkinsCount} icon={User} color="text-amber-400" />
-
             <PerformanceCard label="Cancelled" value={cancelledReservations} icon={XCircle} color="text-red-400" />
-            <PerformanceCard label="No Shows" value={noShows} icon={XCircle} color="text-red-500" />
+            <PerformanceCard label="No-shows" value={noShows} icon={XCircle} color="text-red-500" />
             <PerformanceCard label="Completed" value={completedReservations} icon={CheckCircle2} color="text-green-400" />
-            <PerformanceCard label="Occupied tables" value={occupiedTables} icon={Bookmark} color="text-[#3ecf8e]" />
-            <PerformanceCard label="Available" value={availableTables} icon={CheckCircle2} color="text-green-500" />
-            <PerformanceCard label="Reserved tables" value={reservedTables} icon={Clock} color="text-blue-400" />
-            <PerformanceCard label="Cleaning tables" value={cleaningTables} icon={Brush} color="text-cyan-400" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -438,7 +477,7 @@ export default function Reports() {
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 font-mono uppercase mt-3">
-                  Singapore HQ {activeStore === 'AllBranches' ? "Aggregate network" : `ST-${activeStore}`} has {occupiedTables} occupied tables of {totalTablesCount} total capacity.
+                  Store {activeStore === 'AllBranches' ? "Aggregate network" : activeStore} has {occupiedTables + billingTables} occupied/billing tables of {totalTablesCount} total capacity.
                 </p>
               </div>
             </div>
@@ -471,12 +510,12 @@ export default function Reports() {
               {/* Branch store-wise reservations list */}
               <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col">
                 <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">
-                  Multi-Store HQ Reservations
+                  Multi-Store Reservations
                 </h3>
                 <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
                   {branchData.map(b => (
                     <div key={b.storeId} className="flex items-center justify-between text-xs font-mono py-1.5 border-b border-slate-800/30">
-                      <span className="text-slate-350">{b.storeId} Branch</span>
+                      <span className="text-slate-350">{b.storeName}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-slate-500">Covers: {b.capacity}</span>
                         <span className="text-[#3ecf8e] font-bold">{b.bookings} Bookings</span>

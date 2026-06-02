@@ -211,15 +211,15 @@ export default function StaffManagement() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Personnel Intelligence</h2>
-          <p className="text-slate-500 mt-1">Manage network roles, operational access, and shift assignments.</p>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Staff Management</h2>
+          <p className="text-slate-500 mt-1">Manage roles, operational access, and shift assignments.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
           className="bg-[#3ecf8e] text-[#020617] px-6 py-2.5 rounded text-[10px] uppercase tracking-[0.2em] font-bold hover:shadow-[0_0_20px_rgba(62,207,142,0.4)] transition-all flex items-center gap-2 cursor-pointer"
         >
           <UserPlus size={14} />
-          Provision Access
+          Add Staff
         </button>
       </div>
 
@@ -380,8 +380,8 @@ export default function StaffManagement() {
                     <UserPlus size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white tracking-tight">Provision Identity</h3>
-                    <p className="text-xs text-slate-500 uppercase tracking-widest font-mono">Invite user to Enterprise Suite</p>
+                    <h3 className="text-xl font-bold text-white tracking-tight">Add Staff Member</h3>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-mono">Invite user to Staff Management</p>
                   </div>
                 </div>
 
@@ -456,7 +456,7 @@ export default function StaffManagement() {
                     disabled={submitting}
                     className="flex-[2] py-3 px-6 bg-[#3ecf8e] text-[#020617] font-bold rounded text-[10px] uppercase tracking-[0.2em] hover:shadow-[0_0_20px_rgba(62,207,142,0.3)] transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                   >
-                    {submitting ? 'Encrypting Payload...' : 'Initiate Provisioning'}
+                    {submitting ? 'Adding Staff...' : 'Add Staff'}
                   </button>
                 </div>
               </form>

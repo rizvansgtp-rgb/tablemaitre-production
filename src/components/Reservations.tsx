@@ -685,7 +685,7 @@ export default function Reservations() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Adult Count</label>
+                      <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Adult Pax</label>
                       <span className="text-[9px] font-mono text-slate-500 font-bold">MIN: 1</span>
                     </div>
                     <input 
@@ -703,7 +703,7 @@ export default function Reservations() {
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Child Count</label>
+                      <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Kids Pax</label>
                       <span className="text-[9px] font-mono text-slate-500 font-bold">MIN: 0</span>
                     </div>
                     <input 
@@ -722,8 +722,8 @@ export default function Reservations() {
                 </div>
 
                 <div className="p-3 bg-slate-950/40 rounded-xl border border-slate-800/80 text-[10px] text-slate-400 font-mono flex items-center justify-between uppercase">
-                  <span>Computed Party Size:</span>
-                  <span className="text-[#3ecf8e] font-black tracking-wider">{adults + kids} Covers</span>
+                  <span>Computed Pax:</span>
+                  <span className="text-[#3ecf8e] font-black tracking-wider">{adults + kids} Pax</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

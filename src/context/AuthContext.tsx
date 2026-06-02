@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Profile } from '../types';
+import { Profile, Store } from '../types';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 interface AuthContextType {
@@ -9,6 +9,8 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
+  stores: Store[];
+  storesLoading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   switchStore: (storeId: string) => Promise<void>;
@@ -18,10 +20,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const mockStores: Store[] = [
+  { id: '0301', name: 'Store 0301', location: 'Local Branch' },
+  { id: '0302', name: 'Store 0302', location: 'Local Branch' },
+  { id: '0303', name: 'Store 0303', location: 'Local Branch' },
+  { id: '0304', name: 'Store 0304', location: 'Local Branch' },
+  { id: '0305', name: 'Store 0305', location: 'Local Branch' },
+  { id: '0306', name: 'Store 0306', location: 'Local Branch' },
+  { id: '0307', name: 'Store 0307', location: 'Local Branch' },
+  { id: '0308', name: 'Store 0308', location: 'Local Branch' },
+  { id: '0309', name: 'Store 0309', location: 'Local Branch' },
+];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storesLoading, setStoresLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user: JSON.parse(storedUser) 
         } as any as Session);
       }
+      setStores(mockStores);
       setLoading(false);
       return;
     }
@@ -65,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
+        setStores([]);
         setLoading(false);
       }
     });
@@ -73,6 +91,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  async function fetchStores() {
+    if (!isSupabaseConfigured) {
+      setStores(mockStores);
+      return;
+    }
+    setStoresLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*');
+      if (error) {
+        console.error('[Auth] Error fetching stores from database:', error);
+        setStores([]);
+      } else if (data) {
+        setStores(data);
+      }
+    } catch (err) {
+      console.error('[Auth] Unexpected error fetching stores:', err);
+      setStores([]);
+    } finally {
+      setStoresLoading(false);
+    }
+  }
 
   async function fetchProfile(userId?: string, retryCount = 0) {
     try {
@@ -89,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!session || !session.user) {
         console.warn('[Auth] No active session found. Profile query aborted.');
         setProfile(null);
+        setStores([]);
         setLoading(false);
         return;
       }
@@ -126,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         setProfile(null);
+        setStores([]);
         setLoading(false);
       } else if (!data) {
         // Profile row not found (clean handle using maybeSingle)
@@ -136,10 +180,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         setProfile(null);
+        setStores([]);
         setLoading(false);
       } else {
         console.log('[Auth] Profile successfully synchronized:', data);
         setProfile(data);
+        await fetchStores();
         setLoading(false);
       }
     } catch (err) {
@@ -164,6 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     setUser(mockUser);
     setProfile(mockProfile);
+    setStores(mockStores);
     setSession({ 
       access_token: 'mock-token', 
       token_type: 'bearer', 
@@ -183,6 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('table_maitre_demo_profile');
       setUser(null);
       setProfile(null);
+      setStores([]);
       setSession(null);
       return;
     }
@@ -214,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedProfile = localStorage.getItem('table_maitre_demo_profile');
       if (storedProfile) {
         setProfile(JSON.parse(storedProfile));
+        setStores(mockStores);
       }
       return;
     }
@@ -221,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signOut, refreshProfile, switchStore, signInDemo, signUpDemo }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, stores, storesLoading, signOut, refreshProfile, switchStore, signInDemo, signUpDemo }}>
       {children}
     </AuthContext.Provider>
   );
@@ -234,3 +283,4 @@ export function useAuth() {
   }
   return context;
 }
+

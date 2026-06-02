@@ -129,8 +129,8 @@ export default function Waitlist() {
           
           setEntries(prev => prev.map(w => w.id === editingEntry.id ? { ...w, ...payload } : w));
         } catch (err: any) {
-          console.error("Failed to update waitlist entry:", err);
-          alert(`Failed to update waitlist: ${err.message || err}`);
+          console.error("Failed to update wait queue entry:", err);
+          alert(`Failed to update wait queue: ${err.message || err}`);
         }
       } else {
         const local = localStorage.getItem('table_maitre_waitlist');
@@ -158,8 +158,8 @@ export default function Waitlist() {
             setEntries(prev => [...prev, data as WaitlistEntry]);
           }
         } catch (err: any) {
-          console.error("Failed to create waitlist entry:", err);
-          alert(`Failed to add guest to waitlist: ${err.message || err}`);
+          console.error("Failed to create wait queue entry:", err);
+          alert(`Failed to add guest to wait queue: ${err.message || err}`);
         }
       } else {
         const newEntry = { ...payload, id: tempId, notes, created_at: new Date().toISOString() } as WaitlistEntry;
@@ -177,7 +177,7 @@ export default function Waitlist() {
   };
 
   const handleCancelWaitlist = async (id: string) => {
-    if (confirm("Are you sure you want to cancel this waitlist guest?")) {
+    if (confirm("Are you sure you want to cancel this guest from the wait queue?")) {
       if (isSupabaseConfigured) {
         try {
           const { error } = await supabase
@@ -189,8 +189,8 @@ export default function Waitlist() {
 
           setEntries(prev => prev.filter(w => w.id !== id));
         } catch (err: any) {
-          console.error("Failed to cancel waitlist entry:", err);
-          alert(`Failed to cancel waitlist entry: ${err.message || err}`);
+          console.error("Failed to cancel wait queue entry:", err);
+          alert(`Failed to cancel wait queue entry: ${err.message || err}`);
         }
       } else {
         const local = localStorage.getItem('table_maitre_waitlist');
@@ -228,7 +228,7 @@ export default function Waitlist() {
       }
 
       if (tablesList.length === 0) {
-        alert("No tables available. Please open/clear a table first.");
+        alert("No open tables. Please open/clear a table first.");
         return;
       }
 
@@ -317,8 +317,8 @@ export default function Waitlist() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Walk-in Queue</h2>
-          <p className="text-slate-500 mt-1">Live management of the restaurant waitlist.</p>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Wait Queue</h2>
+          <p className="text-slate-500 mt-1">Live management of the restaurant wait queue.</p>
         </div>
         <button 
           onClick={handleAddClick}
@@ -502,7 +502,7 @@ export default function Waitlist() {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 font-mono">Pax / Party Size</label>
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 font-mono">Pax</label>
                   <input 
                     type="number" 
                     required
@@ -557,7 +557,7 @@ export default function Waitlist() {
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-sm font-black text-[#3ecf8e] tracking-widest uppercase font-mono">
-                  Seat Waitlist Guest
+                  Seat Guest
                 </h3>
                 <button 
                   onClick={() => setSeatingEntry(null)}
@@ -570,17 +570,17 @@ export default function Waitlist() {
               <div className="space-y-4">
                 <div className="p-3 bg-slate-950/40 rounded-xl border border-slate-800/80 text-[10px] text-slate-400 font-mono space-y-1.5 uppercase">
                   <div>Guest: <span className="text-white font-bold">{seatingEntry.guest_name}</span></div>
-                  <div>Party Size: <span className="text-[#3ecf8e] font-black">{seatingEntry.party_size} Pax</span></div>
+                  <div>Pax: <span className="text-[#3ecf8e] font-black">{seatingEntry.party_size} Pax</span></div>
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 font-mono">Select Available Table</label>
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 font-mono">Select Open Table</label>
                   <select 
                     value={selectedTableId}
                     onChange={(e) => setSelectedTableId(e.target.value)}
                     className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#3ecf8e] font-mono font-bold uppercase"
                   >
-                    <option value="">Choose Available Table...</option>
+                    <option value="">Choose Open Table...</option>
                     {availableTables.map(t => (
                       <option key={t.id} value={t.id}>
                         Table {t.number} (Cap {t.capacity})

@@ -12,22 +12,42 @@ import {
   Users
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { cn } from '../lib/utils';
-
-const storeData = [
-  { id: '0301', location: 'Dubai International Financial Centre', revenue: '$14.2k', occupancy: 85, health: 'High', color: '#3ecf8e' },
-  { id: '0302', location: 'Lounge NYC - Manhattan', revenue: '$9.8k', occupancy: 42, health: 'Stable', color: '#f59e0b' },
-  { id: '0303', location: 'Singapore Marina Bay', revenue: '$11.5k', occupancy: 92, health: 'Peak', color: '#3b82f6' },
-  { id: '0304', location: 'London Mayfair Executive', revenue: '$3.1k', occupancy: 12, health: 'Closed', color: '#64748b' },
-];
+import { useAuth } from '../context/AuthContext';
 
 export default function HQ() {
+  const { profile, stores } = useAuth();
+
+  const assignedStores = (profile?.assigned_stores || []).filter(storeId => {
+    const isSpecialStore = storeId !== '0301' && storeId !== '0302';
+    if (isSpecialStore) {
+      return stores.some(s => s.id === storeId);
+    }
+    return true;
+  }).map(storeId => {
+    const dbStore = stores.find(s => s.id === storeId);
+    const mockInfo = [
+      { id: '0301', location: 'Dubai International Financial Centre', revenue: '$14.2k', occupancy: 85, health: 'High', color: '#3ecf8e' },
+      { id: '0302', location: 'Lounge NYC - Manhattan', revenue: '$9.8k', occupancy: 42, health: 'Stable', color: '#f59e0b' },
+      { id: '0303', location: 'Dubai, UAE', revenue: '$11.5k', occupancy: 92, health: 'Peak', color: '#3b82f6' },
+      { id: '0304', location: 'London, UK', revenue: '$3.1k', occupancy: 12, health: 'Closed', color: '#64748b' },
+    ].find(m => m.id === storeId);
+
+    return {
+      id: storeId,
+      location: dbStore ? (dbStore.location || dbStore.name) : (mockInfo ? mockInfo.location : `Store ${storeId}`),
+      revenue: mockInfo ? mockInfo.revenue : '$0.0k',
+      occupancy: mockInfo ? mockInfo.occupancy : 0,
+      health: mockInfo ? mockInfo.health : 'Active',
+      color: mockInfo ? mockInfo.color : '#3ecf8e'
+    };
+  });
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Global Command</h2>
-          <p className="text-slate-500 mt-1">Unified telemetry across the entire restaurant network infrastructure.</p>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Operations Dashboard</h2>
+          <p className="text-slate-500 mt-1">Unified metrics across the entire restaurant network.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] rounded text-[10px] font-bold font-mono tracking-widest uppercase">
@@ -76,45 +96,45 @@ export default function HQ() {
          </div>
          
          <div className="divide-y divide-slate-800/50">
-            {storeData.map((store) => (
-              <div key={store.id} className="px-8 py-6 flex items-center gap-8 group hover:bg-[#3ecf8e]/[0.02] transition-colors">
-                 <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-slate-600 group-hover:border-[#3ecf8e]/30 group-hover:text-[#3ecf8e] transition-all">
-                    <MapPin size={24} />
-                 </div>
-                 
-                 <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                       <h4 className="text-md font-bold text-white tracking-tight">{store.location}</h4>
-                       <span className="text-[9px] font-mono font-bold text-slate-600 uppercase">ST-{store.id}</span>
-                    </div>
-                    <div className="flex items-center gap-6 mt-2">
-                       <div className="flex items-center gap-2">
-                          <DollarSign size={10} className="text-slate-500" />
-                          <span className="text-[11px] font-bold text-slate-300">{store.revenue}</span>
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <Users size={10} className="text-slate-500" />
-                          <span className="text-[11px] font-bold text-slate-300">{store.occupancy}% Load</span>
-                       </div>
-                    </div>
-                 </div>
+            {assignedStores.map((store) => (
+               <div key={store.id} className="px-8 py-6 flex items-center gap-8 group hover:bg-[#3ecf8e]/[0.02] transition-colors">
+                  <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-slate-600 group-hover:border-[#3ecf8e]/30 group-hover:text-[#3ecf8e] transition-all">
+                     <MapPin size={24} />
+                  </div>
+                  
+                  <div className="flex-1">
+                     <div className="flex items-center gap-3">
+                        <h4 className="text-md font-bold text-white tracking-tight">{store.location}</h4>
+                        <span className="text-[9px] font-mono font-bold text-slate-600 uppercase">ST-{store.id}</span>
+                     </div>
+                     <div className="flex items-center gap-6 mt-2">
+                        <div className="flex items-center gap-2">
+                           <DollarSign size={10} className="text-slate-500" />
+                           <span className="text-[11px] font-bold text-slate-300">{store.revenue}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <Users size={10} className="text-slate-500" />
+                           <span className="text-[11px] font-bold text-slate-300">{store.occupancy}% Load</span>
+                        </div>
+                     </div>
+                  </div>
 
-                 <div className="w-48 space-y-2">
-                    <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest leading-none">
-                       <span className="text-slate-500">Node Intensity</span>
-                       <span className="text-[#3ecf8e]">{store.occupancy}%</span>
-                    </div>
-                    <div className="h-1 bg-slate-900 rounded-full overflow-hidden">
-                       <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${store.occupancy}%` }}
-                        className={cn(
-                          "h-full",
-                          store.occupancy > 80 ? "bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.3)]" : "bg-slate-600"
-                        )}
-                       />
-                    </div>
-                 </div>
+                  <div className="w-48 space-y-2">
+                     <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest leading-none">
+                        <span className="text-slate-500">Node Occupancy</span>
+                        <span className="text-[#3ecf8e]">{store.occupancy}%</span>
+                     </div>
+                     <div className="h-1 bg-slate-900 rounded-full overflow-hidden">
+                        <motion.div 
+                         initial={{ width: 0 }}
+                         animate={{ width: `${store.occupancy}%` }}
+                         className={cn(
+                           "h-full",
+                           store.occupancy > 80 ? "bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.3)]" : "bg-slate-600"
+                         )}
+                        />
+                     </div>
+                  </div>
 
                  <div className="w-32 text-right">
                     <span className={cn(
@@ -139,18 +159,18 @@ export default function HQ() {
          <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex gap-4">
             <AlertCircle size={24} className="text-amber-500 shrink-0" />
             <div>
-               <h4 className="text-sm font-bold text-amber-500 uppercase tracking-widest mb-1">Network Anomaly Detected</h4>
+               <h4 className="text-sm font-bold text-amber-500 uppercase tracking-widest mb-1">Sync Anomaly Detected</h4>
                <p className="text-xs text-amber-500/70 leading-relaxed font-medium">
-                  London node ST-0304 is reporting below-nominal turnover for the 12:00 UTC cycle. Automated diagnostic indicates inventory synchronization delay.
+                  Active branch ST-0302 is reporting below-nominal turnover. Automated diagnostic indicates sync status delay.
                </p>
             </div>
          </div>
          <div className="p-6 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-2xl flex gap-4">
             <TrendingUp size={24} className="text-[#3ecf8e] shrink-0" />
             <div>
-               <h4 className="text-sm font-bold text-[#3ecf8e] uppercase tracking-widest mb-1">Network Expansion Potential</h4>
+               <h4 className="text-sm font-bold text-[#3ecf8e] uppercase tracking-widest mb-1">Expansion Potential</h4>
                <p className="text-xs text-[#3ecf8e]/70 leading-relaxed font-medium">
-                  Aggregate demand at Singapore ST-0303 is exceeding current capacity limits by 22% during peak dinner hours. Provisioning additional tables is recommended.
+                  Aggregate demand at active branch ST-0301 is exceeding current capacity limits by 22% during peak dinner hours. Provisioning additional tables is recommended.
                </p>
             </div>
          </div>

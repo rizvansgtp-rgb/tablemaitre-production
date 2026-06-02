@@ -30,7 +30,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const { profile, signOut, switchStore } = useAuth();
+  const { profile, signOut, switchStore, stores } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [isCollapsed, setIsCollapsed] = React.useState(activeTab === 'floor'); // Auto collapse sidebar on first load of floor view to maximize width
   const [pendingSyncCount, setPendingSyncCount] = React.useState(0);
@@ -84,11 +84,11 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'floor', icon: Grid2x2, label: 'Floor Plan' },
     { id: 'reservations', icon: CalendarDays, label: 'Reservations' },
-    { id: 'waitlist', icon: Timer, label: 'Waitlist' },
+    { id: 'waitlist', icon: Timer, label: 'Wait Queue' },
     { id: 'guests', icon: UserCircle, label: 'Guests' },
     { id: 'reports', icon: BarChart3, label: 'Reports', roles: ['owner', 'admin', 'manager'] },
-    { id: 'staff', icon: Users, label: 'Staff', roles: ['owner', 'admin', 'manager'] },
-    { id: 'hq', icon: Store, label: 'HQ View', roles: ['owner', 'admin', 'manager'] },
+    { id: 'staff', icon: Users, label: 'Staff Management', roles: ['owner', 'admin', 'manager'] },
+    { id: 'hq', icon: Store, label: 'Operations Dashboard', roles: ['owner', 'admin', 'manager'] },
     { id: 'settings', icon: Settings, label: 'Settings' },
   ];
 
@@ -221,7 +221,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
               </button>
             )}
             
-            <span className="text-slate-500">Workspace</span>
+            <span className="text-slate-500">Restaurant</span>
             <span className="text-slate-700">/</span>
             {profile && profile.assigned_stores && profile.assigned_stores.length > 1 ? (
               <select
@@ -230,17 +230,34 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
                 className="bg-[#0f172a] border border-slate-800 rounded px-2 py-0.5 text-xs text-white uppercase font-mono tracking-wider focus:outline-none focus:border-[#3ecf8e] cursor-pointer"
                 id="active-store-select"
               >
-                {profile.assigned_stores.map((storeId) => (
-                  <option key={storeId} value={storeId}>
-                    Store {storeId}
-                  </option>
-                ))}
+                {profile.assigned_stores
+                  .filter(storeId => {
+                    const isSpecialStore = storeId !== '0301' && storeId !== '0302';
+                    if (isSpecialStore) {
+                      return stores.some(s => s.id === storeId);
+                    }
+                    return true;
+                  })
+                  .map((storeId) => {
+                    const dbStore = stores.find(s => s.id === storeId);
+                    const storeName = dbStore ? dbStore.name : `Store ${storeId}`;
+                    return (
+                      <option key={storeId} value={storeId}>
+                        {storeName}
+                      </option>
+                    );
+                  })}
               </select>
             ) : (
-              <span className="text-slate-500">Store {profile?.active_store}</span>
+              <span className="text-slate-500">
+                {(() => {
+                  const dbStore = stores.find(s => s.id === profile?.active_store);
+                  return dbStore ? dbStore.name : `Store ${profile?.active_store}`;
+                })()}
+              </span>
             )}
             <span className="text-slate-700">/</span>
-            <span className="text-white font-medium capitalize">{activeTab}</span>
+            <span className="text-[#3ecf8e] font-medium">{navItems.find(item => item.id === activeTab)?.label || activeTab}</span>
           </div>
 
           <div className="flex items-center gap-4">
