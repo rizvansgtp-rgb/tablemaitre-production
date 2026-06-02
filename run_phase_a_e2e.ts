@@ -83,9 +83,10 @@ async function run() {
   const newSectionAName = `QA-SEC-A-${timestamp}`;
 
   try {
-    // Navigate to local dev server
-    console.log('Navigating to http://localhost:3000...');
-    await page.goto('http://localhost:3000');
+    // Navigate to target server
+    const targetUrl = process.env.TARGET_URL || 'http://localhost:3000';
+    console.log(`Navigating to ${targetUrl}...`);
+    await page.goto(targetUrl);
     await page.waitForTimeout(2500);
 
     // Login if needed
