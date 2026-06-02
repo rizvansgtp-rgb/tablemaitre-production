@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import StoreSelector from './components/StoreSelector';
 import Layout from './components/Layout';
@@ -106,26 +107,180 @@ function AIInsight({ storeContext }: { storeContext: any }) {
 
 function Dashboard() {
   const { profile } = useAuth();
-  const stats = [
-    { label: 'Available', value: 12, total: 20, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { label: 'Occupied', value: 8, total: 20, icon: Users, color: 'text-[#3ecf8e]', bg: 'bg-[#3ecf8e]/10' },
-    { label: 'Reserved', value: 5, total: 15, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Waitlist', value: 3, total: 10, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-  ];
+  const [statsData, setStatsData] = useState({
+    available: { value: 12, total: 20 },
+    occupied: { value: 8, total: 20 },
+    reserved: { value: 5, total: 15 },
+    waitlist: { value: 3, total: 10 }
+  });
+  const [sectionsIntensity, setSectionsIntensity] = useState<Array<{ name: string, seats: number, percentage: number }>>([
+    { name: 'Indoor Main', seats: 24, percentage: 85 },
+    { name: 'Outdoor Terrace', seats: 16, percentage: 45 },
+    { name: 'VIP Lounge', seats: 8, percentage: 90 },
+    { name: 'Garden Area', seats: 20, percentage: 20 }
+  ]);
+  const [feedActivities, setFeedActivities] = useState<any[]>([
+    { id: 'act-1', type: 'checkin', guest: 'Michael S.', time: '2m ago', desc: 'Party of 4 seated in Terrace Section', icon: Map, color: 'text-blue-400' },
+    { id: 'act-2', type: 'booking', guest: 'Sarah L.', time: '14m ago', desc: 'Digital reservation confirmed for 20:30', icon: Calendar, color: 'text-[#3ecf8e]' },
+    { id: 'act-3', type: 'alert', guest: 'Waitlist Breach', time: '22m ago', desc: 'Avg wait time for 2P exceeded 45m limit', icon: AlertCircle, color: 'text-amber-500' },
+    { id: 'act-4', type: 'payment', guest: 'Table 14', time: '35m ago', desc: 'Final check encrypted and processed successfully', icon: TrendingUp, color: 'text-green-500' }
+  ]);
+  const [loading, setLoading] = useState(true);
 
-  const activities = [
-    { id: 1, type: 'checkin', guest: 'Michael S.', time: '2m ago', desc: 'Party of 4 seated in Terrace Section', icon: Map, color: 'text-blue-400' },
-    { id: 2, type: 'booking', guest: 'Sarah L.', time: '14m ago', desc: 'Digital reservation confirmed for 20:30', icon: Calendar, color: 'text-[#3ecf8e]' },
-    { id: 3, type: 'alert', guest: 'Waitlist Breach', time: '22m ago', desc: 'Avg wait time for 2P exceeded 45m limit', icon: AlertCircle, color: 'text-amber-500' },
-    { id: 4, type: 'payment', guest: 'Table 14', time: '35m ago', desc: 'Final check encrypted and processed successfully', icon: TrendingUp, color: 'text-green-500' },
+  useEffect(() => {
+    let active = true;
+    const fetchDashboardData = async () => {
+      const activeStore = profile?.active_store || '0301';
+      if (!isSupabaseConfigured) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // 1. Fetch tables
+        const { data: tables, error: tablesError } = await supabase
+          .from('restaurant_tables')
+          .select('*')
+          .eq('store_id', activeStore);
+
+        if (tablesError) throw tablesError;
+
+        const tableList = tables || [];
+        const totalTablesCount = tableList.length;
+        const availableCount = tableList.filter(t => t.status === 'available').length;
+        const occupiedCount = tableList.filter(t => t.status === 'occupied' || t.status === 'billing').length;
+
+        // 2. Fetch reservations
+        const { count: reservedCount, error: resError } = await supabase
+          .from('reservations')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', activeStore)
+          .in('status', ['booked', 'confirmed']);
+
+        if (resError) throw resError;
+
+        // 3. Fetch waitlist
+        const { count: waitlistCount, error: wlError } = await supabase
+          .from('waitlist')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', activeStore)
+          .eq('status', 'waiting');
+
+        if (wlError) throw wlError;
+
+        // Calculate dynamic capacities
+        const totalTablesVal = totalTablesCount || 20;
+        const reservedVal = reservedCount || 0;
+        const waitlistVal = waitlistCount || 0;
+
+        // 4. Fetch sections
+        const { data: sections, error: sectionsError } = await supabase
+          .from('sections')
+          .select('*')
+          .eq('store_id', activeStore);
+
+        if (sectionsError) throw sectionsError;
+
+        const sectionList = sections || [];
+        const intensity = sectionList.map(sec => {
+          const secTables = tableList.filter(t => t.section_id === sec.id);
+          const totalSeats = secTables.reduce((sum, t) => sum + (t.capacity || 0), 0);
+          const occupiedTables = secTables.filter(t => t.status === 'occupied' || t.status === 'billing');
+          const occupiedSeats = occupiedTables.reduce((sum, t) => sum + (t.guest_count || t.capacity || 0), 0);
+          const percentage = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
+          return {
+            name: sec.name,
+            seats: totalSeats,
+            percentage: Math.min(100, percentage)
+          };
+        });
+
+        // 5. Fetch recent activity logs
+        const { data: logs, error: logsError } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .eq('store_id', activeStore)
+          .order('created_at', { ascending: false })
+          .limit(4);
+
+        let mappedActivities = [];
+        if (logs && logs.length > 0) {
+          const mapIcon = (type: string) => {
+            if (type.toLowerCase().includes('table')) return Map;
+            if (type.toLowerCase().includes('res')) return Calendar;
+            if (type.toLowerCase().includes('waitlist')) return AlertCircle;
+            return TrendingUp;
+          };
+          const mapColor = (type: string) => {
+            if (type.toLowerCase().includes('table')) return 'text-blue-400';
+            if (type.toLowerCase().includes('res')) return 'text-[#3ecf8e]';
+            if (type.toLowerCase().includes('waitlist')) return 'text-amber-500';
+            return 'text-green-500';
+          };
+          const formatTime = (dateStr: string) => {
+            const diffMs = Date.now() - new Date(dateStr).getTime();
+            const diffMins = Math.floor(diffMs / 1000 / 60);
+            if (diffMins < 1) return 'now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            const hrs = Math.floor(diffMins / 60);
+            if (hrs < 24) return `${hrs}h ago`;
+            return new Date(dateStr).toLocaleDateString();
+          };
+
+          mappedActivities = logs.map((log: any) => ({
+            id: log.id,
+            type: log.entity_type,
+            guest: log.entity_type === 'restaurant_tables' || log.entity_type === 'table' ? `Table ${log.entity_id || ''}` : (log.entity_type || 'System'),
+            time: formatTime(log.created_at),
+            desc: `${log.action}: ${log.details || ''}`,
+            icon: mapIcon(log.entity_type),
+            color: mapColor(log.entity_type)
+          }));
+        }
+
+        if (active) {
+          setStatsData({
+            available: { value: availableCount, total: totalTablesVal },
+            occupied: { value: occupiedCount, total: totalTablesVal },
+            reserved: { value: reservedVal, total: Math.max(15, reservedVal) },
+            waitlist: { value: waitlistVal, total: Math.max(10, waitlistVal) }
+          });
+          if (intensity.length > 0) {
+            setSectionsIntensity(intensity);
+          }
+          if (mappedActivities.length > 0) {
+            setFeedActivities(mappedActivities);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDashboardData();
+    return () => {
+      active = false;
+    };
+  }, [profile?.active_store]);
+
+  const stats = [
+    { label: 'Available', value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
+    { label: 'Occupied', value: statsData.occupied.value, total: statsData.occupied.total, icon: Users, color: 'text-[#3ecf8e]', bg: 'bg-[#3ecf8e]/10' },
+    { label: 'Reserved', value: statsData.reserved.value, total: statsData.reserved.total, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { label: 'Waitlist', value: statsData.waitlist.value, total: statsData.waitlist.total, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
   ];
 
   const storeContext = {
     storeId: profile?.active_store,
-    occupancy: 8,
-    totalTables: 20,
-    waitlist: 3,
-    sections: ['Indoor Main', 'Outdoor Terrace', 'VIP Lounge', 'Garden Area']
+    occupancy: statsData.occupied.value,
+    totalTables: statsData.available.total,
+    waitlist: statsData.waitlist.value,
+    sections: sectionsIntensity.map(s => s.name)
   };
 
   return (
@@ -166,7 +321,7 @@ function Dashboard() {
              <div className="mt-4 h-1 bg-slate-800 rounded-full overflow-hidden">
                <motion.div 
                 initial={{ width: 0 }}
-                animate={{ width: `${(stat.value / stat.total) * 100}%` }}
+                animate={{ width: stat.total > 0 ? `${(stat.value / stat.total) * 100}%` : '0%' }}
                 className={cn("h-full", i === 1 ? "bg-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.5)]" : "bg-slate-600")} 
                />
             </div>
@@ -219,20 +374,20 @@ function Dashboard() {
               <div className="px-2 py-0.5 rounded-full bg-[#3ecf8e]/20 text-[#3ecf8e] text-[9px]">REAL-TIME</div>
             </div>
             <div className="space-y-6 pb-4">
-              {['Indoor Main', 'Outdoor Terrace', 'VIP Lounge', 'Garden Area'].map((section, i) => (
-                <div key={section} className="space-y-3">
+              {sectionsIntensity.map((section) => (
+                <div key={section.name} className="space-y-3">
                   <div className="grid grid-cols-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    <span className="col-span-2 text-slate-200">{section}</span>
-                    <span className="text-right">{ [24, 16, 8, 20][i] } Seats</span>
-                    <span className="text-right text-[#3ecf8e]">{[85, 45, 90, 20][i]}%</span>
+                    <span className="col-span-2 text-slate-200">{section.name}</span>
+                    <span className="text-right">{ section.seats } Seats</span>
+                    <span className="text-right text-[#3ecf8e]">{section.percentage}%</span>
                   </div>
                   <div className="h-1 bg-slate-950 rounded-full overflow-hidden">
                      <motion.div 
                       initial={{ width: 0 }}
-                      animate={{ width: `${[85, 45, 90, 20][i]}%` }}
+                      animate={{ width: `${section.percentage}%` }}
                       className={cn(
                         "h-full shadow-[0_0_10px_rgba(62,207,142,0.5)]",
-                        [85, 45, 90, 20][i] > 80 ? "bg-[#3ecf8e]" : "bg-slate-600"
+                        section.percentage > 80 ? "bg-[#3ecf8e]" : "bg-slate-600"
                       )}
                      />
                   </div>
@@ -249,7 +404,7 @@ function Dashboard() {
               Operation Feed
             </h3>
             <div className="space-y-4">
-               {activities.map((act, i) => (
+               {feedActivities.map((act, i) => (
                  <motion.div 
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}

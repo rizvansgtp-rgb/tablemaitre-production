@@ -13,13 +13,25 @@ interface TableIconProps {
 
 export const getStatusColor = (status: TableStatus) => {
   switch (status) {
-    case 'available': return 'bg-green-500';
-    case 'occupied': return 'bg-[#3ecf8e]';
-    case 'reserved': return 'bg-blue-500';
-    case 'billing': return 'bg-amber-500';
-    case 'cleaning': return 'bg-cyan-500';
-    case 'blocked': return 'bg-slate-700';
-    default: return 'bg-slate-400';
+    case 'available': return 'fill-emerald-500 bg-emerald-500';
+    case 'occupied': return 'fill-rose-500 bg-rose-500';
+    case 'reserved': return 'fill-amber-500 bg-amber-500';
+    case 'billing': return 'fill-violet-500 bg-violet-500';
+    case 'cleaning': return 'fill-cyan-500 bg-cyan-500';
+    case 'blocked': return 'fill-slate-500 bg-slate-500';
+    default: return 'fill-slate-400 bg-slate-400';
+  }
+};
+
+export const getStatusStrokeClass = (status: TableStatus) => {
+  switch (status) {
+    case 'available': return 'stroke-emerald-500';
+    case 'occupied': return 'stroke-rose-500';
+    case 'reserved': return 'stroke-amber-500';
+    case 'billing': return 'stroke-violet-500';
+    case 'cleaning': return 'stroke-cyan-500';
+    case 'blocked': return 'stroke-slate-500';
+    default: return 'stroke-slate-400';
   }
 };
 
@@ -32,6 +44,19 @@ export default function TableIcon({
 }: TableIconProps) {
   const isOccupied = table.status === 'occupied' || table.status === 'billing';
   const colorClass = getStatusColor(table.status);
+
+  const getDotCoords = () => {
+    switch (table.shape) {
+      case 'round':
+        return { cx: 28, cy: -28 };
+      case 'rect':
+        return { cx: 45, cy: -22 };
+      case 'square':
+      default:
+        return { cx: 30, cy: -30 };
+    }
+  };
+  const { cx, cy } = getDotCoords();
 
   const renderChairs = () => {
     const chairs = [];
@@ -130,8 +155,8 @@ export default function TableIcon({
             <motion.circle 
               r="40" 
               className={cn(
-                "transition-all duration-500 stroke-2",
-                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : "stroke-white/5 fill-[#0f172a] group-hover:stroke-[#3ecf8e]/30"
+                "table-body-shape transition-all duration-500 stroke-2",
+                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : cn(getStatusStrokeClass(table.status), "fill-[#0f172a] group-hover:brightness-110")
               )}
               animate={{ 
                 fill: selectedTable?.id === table.id ? 'rgba(62, 207, 142, 0.05)' : 'rgba(15, 23, 42, 1)'
@@ -141,8 +166,8 @@ export default function TableIcon({
             <motion.rect 
               x="-38" y="-38" width="76" height="76" rx="10"
               className={cn(
-                "transition-all duration-500 stroke-2",
-                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : "stroke-white/5 fill-[#0f172a] group-hover:stroke-[#3ecf8e]/30"
+                "table-body-shape transition-all duration-500 stroke-2",
+                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : cn(getStatusStrokeClass(table.status), "fill-[#0f172a] group-hover:brightness-110")
               )}
               animate={{ 
                 fill: selectedTable?.id === table.id ? 'rgba(62, 207, 142, 0.05)' : 'rgba(15, 23, 42, 1)'
@@ -152,8 +177,8 @@ export default function TableIcon({
             <motion.rect 
               x="-55" y="-30" width="110" height="60" rx="12"
               className={cn(
-                "transition-all duration-500 stroke-2",
-                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : "stroke-white/5 fill-[#0f172a] group-hover:stroke-[#3ecf8e]/30"
+                "table-body-shape transition-all duration-500 stroke-2",
+                isEditing ? "stroke-[#3ecf8e]/50 fill-[#0f172a]" : cn(getStatusStrokeClass(table.status), "fill-[#0f172a] group-hover:brightness-110")
               )}
               animate={{ 
                 fill: selectedTable?.id === table.id ? 'rgba(62, 207, 142, 0.05)' : 'rgba(15, 23, 42, 1)'
@@ -169,8 +194,8 @@ export default function TableIcon({
         {/* Status Indicator with Spring Animation and Pulse Flash on change */}
         <motion.circle 
           key={`dot-${table.status}`}
-          cx="0"
-          cy="0"
+          cx={cx}
+          cy={cy}
           r="8" 
           className={cn("stroke-[#020617] stroke-2 shadow-lg", colorClass)}
           initial={{ scale: 0 }}

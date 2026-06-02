@@ -13,7 +13,8 @@ import {
   AlertCircle, 
   Trash2, 
   Minimize2,
-  XCircle
+  XCircle,
+  Receipt
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Table, TableStatus } from '../types';
@@ -84,16 +85,26 @@ export default function FloorPlan() {
       if (!isSupabaseConfigured) {
         const local = localStorage.getItem('table_maitre_sections');
         if (local) {
-          setSections(JSON.parse(local));
-          return;
+          const parsed = JSON.parse(local);
+          const storeSecs = parsed.filter((s: any) => s.store_id === storeId);
+          if (storeSecs.length > 0) {
+            setSections(storeSecs);
+            return;
+          }
         }
         const demoSecs = [
-          { id: 'Indoor Main', store_id: storeId, name: 'Indoor Main' },
-          { id: 'Outdoor Terrace', store_id: storeId, name: 'Outdoor Terrace' },
-          { id: 'VIP Lounge', store_id: storeId, name: 'VIP Lounge' },
-          { id: 'Garden Area', store_id: storeId, name: 'Garden Area' }
+          { id: `${storeId}-Indoor Main`, store_id: storeId, name: 'Indoor Main' },
+          { id: `${storeId}-Outdoor Terrace`, store_id: storeId, name: 'Outdoor Terrace' },
+          { id: `${storeId}-VIP Lounge`, store_id: storeId, name: 'VIP Lounge' },
+          { id: `${storeId}-Garden Area`, store_id: storeId, name: 'Garden Area' }
         ];
-        localStorage.setItem('table_maitre_sections', JSON.stringify(demoSecs));
+        let allSections = [];
+        const existingRaw = localStorage.getItem('table_maitre_sections');
+        if (existingRaw) {
+          allSections = JSON.parse(existingRaw).filter((s: any) => s.store_id !== storeId);
+        }
+        allSections = [...allSections, ...demoSecs];
+        localStorage.setItem('table_maitre_sections', JSON.stringify(allSections));
         setSections(demoSecs);
         return;
       }
@@ -109,10 +120,10 @@ export default function FloorPlan() {
         setSections(data);
       } else {
         const demoSecs = [
-          { id: 'Indoor Main', store_id: storeId, name: 'Indoor Main' },
-          { id: 'Outdoor Terrace', store_id: storeId, name: 'Outdoor Terrace' },
-          { id: 'VIP Lounge', store_id: storeId, name: 'VIP Lounge' },
-          { id: 'Garden Area', store_id: storeId, name: 'Garden Area' }
+          { id: `${storeId}-Indoor Main`, store_id: storeId, name: 'Indoor Main' },
+          { id: `${storeId}-Outdoor Terrace`, store_id: storeId, name: 'Outdoor Terrace' },
+          { id: `${storeId}-VIP Lounge`, store_id: storeId, name: 'VIP Lounge' },
+          { id: `${storeId}-Garden Area`, store_id: storeId, name: 'Garden Area' }
         ];
         setSections(demoSecs);
         try {
@@ -133,6 +144,40 @@ export default function FloorPlan() {
     });
     return map;
   }, [sections]);
+
+  const handleRenameSectionClick = async (sectionId: string, currentName: string) => {
+    const newName = prompt(`Enter new name for section "${currentName}":`, currentName);
+    if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
+
+    const trimmedName = newName.trim();
+    const originalSections = [...sections];
+    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: trimmedName } : s));
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('sections')
+          .update({ name: trimmedName })
+          .eq('id', sectionId)
+          .eq('store_id', profile?.active_store);
+
+        if (error) {
+          throw error;
+        }
+      } catch (err: any) {
+        console.error('Failed to rename section in database:', err);
+        alert(`Failed to rename section: ${err.message || err}`);
+        setSections(originalSections);
+      }
+    } else {
+      const local = localStorage.getItem('table_maitre_sections');
+      if (local) {
+        const parsed = JSON.parse(local);
+        const updated = parsed.map((s: any) => s.id === sectionId ? { ...s, name: trimmedName } : s);
+        localStorage.setItem('table_maitre_sections', JSON.stringify(updated));
+      }
+    }
+  };
 
   async function fetchTables(storeId: string = profile?.active_store || '0301') {
     try {
@@ -193,7 +238,7 @@ export default function FloorPlan() {
         x: (i % 5) * 150 + 100,
         y: Math.floor(i / 5) * 150 + 100,
         shape: i % 3 === 0 ? 'round' : (i % 3 === 1 ? 'square' : 'rect'),
-        section_id: sec,
+        section_id: `${storeId}-${sec}`,
         guest_count: i % 5 === 0 ? Math.ceil(Math.random() * 4) : undefined,
         waiter_name: i % 5 === 0 ? 'John' : undefined,
         seated_at: i % 5 === 0 ? new Date(Date.now() - 1000 * 60 * 45).toISOString() : undefined,
@@ -654,14 +699,27 @@ export default function FloorPlan() {
             >
               All
             </button>
-            {sectionsToShow.map(s => (
-              <button 
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={cn("px-4 py-1.5 rounded text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer", activeSection === s.id ? "bg-slate-800 text-[#3ecf8e] shadow-sm" : "text-slate-500 hover:text-slate-300")}
-              >
-                {s.name}
-              </button>
+             {sectionsToShow.map(s => (
+              <div key={s.id} className="relative flex items-center">
+                <button 
+                  onClick={() => setActiveSection(s.id)}
+                  className={cn("px-4 py-1.5 rounded text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer flex items-center gap-1.5", activeSection === s.id ? "bg-slate-800 text-[#3ecf8e] shadow-sm" : "text-slate-500 hover:text-slate-300")}
+                >
+                  <span>{s.name}</span>
+                  {isEditing && (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRenameSectionClick(s.id, s.name);
+                      }}
+                      className="p-0.5 hover:bg-slate-700/50 rounded text-slate-400 hover:text-white transition-all cursor-pointer"
+                      title="Rename section"
+                    >
+                      <Edit3 size={10} />
+                    </span>
+                  )}
+                </button>
+              </div>
             ))}
           </div>
           <div className="flex items-center gap-4 text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-slate-600">
@@ -813,6 +871,7 @@ export default function FloorPlan() {
                   { id: 'available', label: 'Set Available', icon: CheckCircle2, color: 'text-green-500' },
                   { id: 'occupied', label: 'Seat Guests', icon: Users, color: 'text-[#3ecf8e]' },
                   { id: 'reserved', label: 'Mark Reserved', icon: Clock, color: 'text-blue-500' },
+                  { id: 'billing', label: 'Process Bill', icon: Receipt, color: 'text-purple-500' },
                   { id: 'cleaning', label: 'Maintenance', icon: AlertCircle, color: 'text-cyan-500' },
                 ].map((btn) => (
                   <button
@@ -961,6 +1020,7 @@ export default function FloorPlan() {
                           { id: 'available', label: 'Set Open', icon: CheckCircle2, color: 'text-green-500', bg: 'hover:bg-green-500/5' },
                           { id: 'occupied', label: 'Seat Party', icon: Users, color: 'text-[#3ecf8e]', bg: 'hover:bg-[#3ecf8e]/5' },
                           { id: 'reserved', label: 'Book Spot', icon: Clock, color: 'text-blue-500', bg: 'hover:bg-blue-500/5' },
+                          { id: 'billing', label: 'Process Bill', icon: Receipt, color: 'text-purple-500', bg: 'hover:bg-purple-500/5' },
                           { id: 'cleaning', label: 'Maintain', icon: AlertCircle, color: 'text-cyan-500', bg: 'hover:bg-cyan-500/5' },
                           { id: 'blocked', label: 'Deactivate', icon: XCircle, color: 'text-slate-600', bg: 'hover:bg-slate-700/5' },
                         ].map((btn) => (

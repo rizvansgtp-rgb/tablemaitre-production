@@ -6,7 +6,12 @@ dotenv.config();
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 const EMAIL = 'mohammed@chinesepalacegroup.com';
-const PASSWORD = process.env.TEST_PASSWORD || 'Cprg@1041';
+const PASSWORD = process.env.TEST_PASSWORD || '';
+
+if (!PASSWORD) {
+  console.error('TEST_PASSWORD environment variable is required');
+  process.exit(1);
+}
 
 async function cleanup() {
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -23,7 +28,13 @@ async function cleanup() {
     return;
   }
 
-  const toDelete = data.filter(t => t.number.startsWith('QA-'));
+  const toDelete = data.filter(t => 
+    t.number.startsWith('QA-') || 
+    t.number.startsWith('PROD-QA-TABLE') || 
+    t.number.startsWith('TPROD') ||
+    t.number === '105' ||
+    t.number === '106'
+  );
   console.log(`Found ${toDelete.length} test tables to delete:`, toDelete.map(t => t.number));
 
   if (toDelete.length > 0) {
