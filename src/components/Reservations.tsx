@@ -22,6 +22,7 @@ import { Reservation } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { addToOfflineQueue } from '../lib/offlineQueue';
 
 export default function Reservations() {
   const { profile } = useAuth();
@@ -67,7 +68,7 @@ export default function Reservations() {
         }
       }
     }
-  }, [profile?.active_store, isModalOpen]);
+  }, [profile?.active_store]);
 
   async function fetchReservations() {
     try {
@@ -103,6 +104,7 @@ export default function Reservations() {
         .order('datetime', { ascending: true });
 
       if (error) throw error;
+      console.log("[DEBUG Reservations] fetchReservations got data JSON:", JSON.stringify(data));
       setReservations(data || []);
     } catch (err) {
       console.error('Error fetching reservations:', err);
@@ -126,10 +128,96 @@ export default function Reservations() {
     }));
   }
 
+  const applyTableUpdates = async (
+    targetTableId: string | null,
+    tableUpdates: any,
+    oldTableIdToClear: string | null,
+    oldGuestName?: string
+  ) => {
+    let oldTableUpdates: any = null;
+    if (oldTableIdToClear) {
+      const oldTbl = tablesList.find(t => t.id === oldTableIdToClear);
+      if (oldTbl && oldTbl.reservation_name === (oldGuestName || name)) {
+        oldTableUpdates = {
+          status: oldTbl.status === 'occupied' || oldTbl.status === 'billing' ? 'cleaning' : 'available',
+          reservation_name: null,
+          guest_count: null,
+          seated_at: null
+        };
+      }
+    }
+
+    // 1. Local Cache Updates
+    if (!isSupabaseConfigured) {
+      const existingTables = localStorage.getItem('table_maitre_tables');
+      if (existingTables) {
+        let parsed = JSON.parse(existingTables);
+        parsed = parsed.map((item: any) => {
+          if (targetTableId && item.id === targetTableId && tableUpdates) {
+            return { ...item, ...tableUpdates };
+          }
+          if (oldTableIdToClear && item.id === oldTableIdToClear && oldTableUpdates) {
+            return { ...item, ...oldTableUpdates };
+          }
+          return item;
+        });
+        localStorage.setItem('table_maitre_tables', JSON.stringify(parsed));
+        setTablesList(parsed.filter((t: any) => t.store_id === profile?.active_store));
+      }
+      return;
+    }
+
+    // 2. Supabase + Offline Queue updates
+    try {
+      if (targetTableId && tableUpdates) {
+        addToOfflineQueue('update', 'restaurant_tables', { id: targetTableId, ...tableUpdates });
+        await supabase.from('restaurant_tables').update(tableUpdates).eq('id', targetTableId);
+      }
+      if (oldTableIdToClear && oldTableUpdates) {
+        addToOfflineQueue('update', 'restaurant_tables', { id: oldTableIdToClear, ...oldTableUpdates });
+        await supabase.from('restaurant_tables').update(oldTableUpdates).eq('id', oldTableIdToClear);
+      }
+      
+      // Refresh tablesList
+      const { data: updatedTables } = await supabase
+        .from('restaurant_tables')
+        .select('*')
+        .eq('store_id', profile?.active_store);
+      setTablesList(updatedTables || []);
+    } catch (err) {
+      console.error('Failed to sync tables in background:', err);
+    }
+  };
+
   const updateStatus = async (id: string, status: Reservation['status']) => {
+    const resItem = reservations.find(r => r.id === id);
+    if (!resItem) return;
+
+    if (status === 'seated' && !resItem.table_id) {
+      alert("Validation Error: Please assign a table to this reservation before seating.");
+      return;
+    }
+
     const previousReservations = [...reservations];
     const updatedRes = reservations.map(r => r.id === id ? { ...r, status } : r);
     setReservations(updatedRes);
+
+    // Prepare table updates
+    let tableUpdates: any = null;
+    let targetTableId: string | null = null;
+    let oldTableIdToClear: string | null = null;
+
+    if (status === 'seated' && resItem.table_id) {
+      targetTableId = resItem.table_id;
+      tableUpdates = {
+        status: 'occupied',
+        guest_count: resItem.party_size,
+        reservation_name: resItem.guest_name,
+        seated_at: new Date().toISOString()
+      };
+    } else if (status === 'cancelled' && resItem.table_id) {
+      oldTableIdToClear = resItem.table_id;
+    }
 
     if (!isSupabaseConfigured) {
       const existing = localStorage.getItem('table_maitre_reservations');
@@ -138,19 +226,19 @@ export default function Reservations() {
         const updatedAll = parsed.map((item: any) => item.id === id ? { ...item, status } : item);
         localStorage.setItem('table_maitre_reservations', JSON.stringify(updatedAll));
       }
+      await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear, resItem.guest_name);
       return;
     }
 
     try {
+      addToOfflineQueue('update', 'reservations', { id, status });
       const { error } = await supabase
         .from('reservations')
         .update({ status })
         .eq('id', id);
-      if (error) {
-        console.error('Error updating status:', error);
-        alert(`Failed to update status: ${error.message}`);
-        setReservations(previousReservations);
-      }
+      if (error) throw error;
+
+      await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear, resItem.guest_name);
     } catch (err: any) {
       console.error('Unexpected error:', err);
       alert(`Failed to update status: ${err.message || err}`);
@@ -198,6 +286,11 @@ export default function Reservations() {
       return;
     }
 
+    if (status === 'seated' && !tableId) {
+      alert("Validation Error: Please assign a table to this reservation before seating.");
+      return;
+    }
+
     // 1. Duplicate passenger/guest check on same date
     const isGuestDuplicate = reservations.some(r => 
       r.id !== editingRes?.id &&
@@ -241,6 +334,27 @@ export default function Reservations() {
       notes: notes || null
     };
 
+    let targetTableId: string | null = null;
+    let tableUpdates: any = null;
+    let oldTableIdToClear: string | null = null;
+
+    if (status === 'seated' && tableId) {
+      targetTableId = tableId;
+      tableUpdates = {
+        status: 'occupied',
+        guest_count: computedPartySize,
+        reservation_name: name,
+        seated_at: new Date().toISOString()
+      };
+      if (editingRes && editingRes.table_id && editingRes.table_id !== tableId) {
+        oldTableIdToClear = editingRes.table_id;
+      }
+    } else if (status === 'cancelled' && editingRes?.table_id) {
+      oldTableIdToClear = editingRes.table_id;
+    } else if (editingRes && editingRes.table_id && editingRes.table_id !== tableId) {
+      oldTableIdToClear = editingRes.table_id;
+    }
+
     if (editingRes) {
       // Edit mode
       const previousReservations = [...reservations];
@@ -256,11 +370,13 @@ export default function Reservations() {
           const updatedAll = parsed.map((item: any) => item.id === editingRes.id ? { ...item, ...newRes } : item);
           localStorage.setItem('table_maitre_reservations', JSON.stringify(updatedAll));
         }
+        await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear, editingRes.guest_name);
       } else {
         try {
           const dbPayload = { ...newRes };
           delete dbPayload.adults;
           delete dbPayload.kids;
+          addToOfflineQueue('update', 'reservations', { id: editingRes.id, ...dbPayload });
           const { error } = await supabase
             .from('reservations')
             .update(dbPayload)
@@ -269,6 +385,8 @@ export default function Reservations() {
             console.error('Error updating booking:', error);
             alert(`Failed to update reservation in database: ${error.message}`);
             setReservations(previousReservations);
+          } else {
+            await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear, editingRes.guest_name);
           }
         } catch (err: any) {
           console.error(err);
@@ -280,38 +398,44 @@ export default function Reservations() {
       // Create mode
       const tempId = `res-${Date.now()}`;
       const savedRes = { ...newRes, id: tempId } as Reservation;
+      console.log("[DEBUG Reservations] Creating new reservation:", JSON.stringify(savedRes));
       setReservations(prev => [...prev, savedRes]);
       setIsModalOpen(false);
 
       if (!isSupabaseConfigured) {
+        console.log("[DEBUG Reservations] Supabase not configured. Using local cache.");
         const existing = localStorage.getItem('table_maitre_reservations') || '[]';
         const parsed = JSON.parse(existing);
         localStorage.setItem('table_maitre_reservations', JSON.stringify([...parsed, savedRes]));
+        await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear);
       } else {
+        console.log("[DEBUG Reservations] Supabase is configured. Inserting reservation into DB:", JSON.stringify(newRes));
         try {
           const dbPayload = { ...newRes };
           delete dbPayload.adults;
           delete dbPayload.kids;
+          
           const { data, error } = await supabase
             .from('reservations')
             .insert([dbPayload])
             .select()
             .single();
           if (error) {
-            console.error('Error inserting booking:', error);
+            console.error('[DEBUG Reservations] Error inserting booking:', error);
             alert(`Failed to create reservation in database: ${error.message}`);
             setReservations(prev => prev.filter(r => r.id !== tempId));
           } else if (data) {
-            // Replace the temp ID in state with the real database ID
+            console.log("[DEBUG Reservations] Reservation inserted successfully, data:", JSON.stringify(data));
             const mapped = {
               ...data,
               adults: newRes.adults,
               kids: newRes.kids
             };
             setReservations(prev => prev.map(r => r.id === tempId ? mapped : r));
+            await applyTableUpdates(targetTableId, tableUpdates, oldTableIdToClear);
           }
         } catch(err: any) {
-          console.error(err);
+          console.error('[DEBUG Reservations] Exception caught in insert:', err);
           alert(`Failed to create reservation: ${err.message || err}`);
           setReservations(prev => prev.filter(r => r.id !== tempId));
         }

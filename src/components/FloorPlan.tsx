@@ -34,6 +34,8 @@ export default function FloorPlan() {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [modalTab, setModalTab] = useState<'service' | 'config'>('service');
   const [quickMenu, setQuickMenu] = useState<{ x: number, y: number, tableId: string } | null>(null);
+  const [transferTargetId, setTransferTargetId] = useState<string>('');
+  const [transferCleanAction, setTransferCleanAction] = useState<'cleaning' | 'available'>('cleaning');
 
   // Pan and Zoom workspace viewState
   const [viewState, setViewState] = useState({ x: 50, y: 50, scale: 0.85 });
@@ -270,6 +272,45 @@ export default function FloorPlan() {
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
 
+    const current = table.status;
+    if (current === status) return;
+
+    // Lifecycle workflow guard checks
+    let isBlocked = false;
+    let message = "";
+
+    if (current === 'available') {
+      if (status === 'billing' || status === 'cleaning') {
+        isBlocked = true;
+        message = `Invalid Shift: An open table cannot directly transition to ${status === 'billing' ? 'billing' : 'cleaning'}.`;
+      }
+    } else if (current === 'reserved') {
+      if (status === 'billing' || status === 'cleaning') {
+        isBlocked = true;
+        message = `Invalid Shift: A reserved table cannot transition directly to ${status === 'billing' ? 'billing' : 'cleaning'}. It must be seated first.`;
+      }
+    } else if (current === 'occupied') {
+      if (status === 'available' || status === 'reserved' || status === 'cleaning') {
+        isBlocked = true;
+        message = `Invalid Shift: An occupied table must request bill first.`;
+      }
+    } else if (current === 'billing') {
+      if (status === 'available' || status === 'reserved' || status === 'occupied') {
+        isBlocked = true;
+        message = `Invalid Shift: A table in billing must transition to cleaning before it can be occupied, reserved, or opened.`;
+      }
+    } else if (current === 'cleaning') {
+      if (status === 'reserved' || status === 'occupied' || status === 'billing') {
+        isBlocked = true;
+        message = `Invalid Shift: A table in cleaning must be opened (made available) before it can be reserved, occupied, or request bill.`;
+      }
+    }
+
+    if (isBlocked) {
+      alert(message);
+      return;
+    }
+
     const previousTables = [...tables];
     const previousSelectedTable = selectedTable ? { ...selectedTable } : null;
 
@@ -281,6 +322,7 @@ export default function FloorPlan() {
     } else if (status === 'available' || status === 'cleaning') {
       updates.guest_count = null;
       updates.waiter_name = null;
+      updates.reservation_name = null;
       updates.seated_at = null;
     }
 
@@ -494,6 +536,103 @@ export default function FloorPlan() {
         alert(`Failed to add table: ${err.message || err}`);
         setTables(prev => prev.filter(t => t.id !== tempId));
         setSelectedTable(null);
+      }
+    }
+  };
+
+  const handleTableTransfer = async () => {
+    if (!selectedTable || !transferTargetId) return;
+    
+    const destTable = tables.find(t => t.id === transferTargetId);
+    if (!destTable) return;
+    
+    if (destTable.status !== 'available') {
+      alert("Transfer Blocked: Destination table must be available/open.");
+      return;
+    }
+
+    if (selectedTable.status !== 'occupied') {
+      alert("Transfer Blocked: Source table must be occupied.");
+      return;
+    }
+
+    const previousTables = [...tables];
+    const sourceCleanState = transferCleanAction;
+
+    const sourceUpdates = {
+      status: sourceCleanState,
+      guest_count: null,
+      reservation_name: null,
+      seated_at: null
+    };
+
+    const destUpdates = {
+      status: 'occupied' as TableStatus,
+      guest_count: selectedTable.guest_count,
+      reservation_name: selectedTable.reservation_name,
+      seated_at: selectedTable.seated_at
+    };
+
+    // Update state
+    setTables(prev => prev.map(t => {
+      if (t.id === selectedTable.id) return { ...t, ...sourceUpdates };
+      if (t.id === destTable.id) return { ...t, ...destUpdates };
+      return t;
+    }));
+    setSelectedTable(null);
+    setTransferTargetId('');
+
+    // Offline queue
+    addToOfflineQueue('update', 'restaurant_tables', { id: selectedTable.id, ...sourceUpdates });
+    addToOfflineQueue('update', 'restaurant_tables', { id: destTable.id, ...destUpdates });
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('restaurant_tables').update(sourceUpdates).eq('id', selectedTable.id);
+        await supabase.from('restaurant_tables').update(destUpdates).eq('id', destTable.id);
+
+        if (selectedTable.reservation_name) {
+          const { data: resData } = await supabase
+            .from('reservations')
+            .select('id')
+            .eq('table_id', selectedTable.id)
+            .eq('guest_name', selectedTable.reservation_name)
+            .eq('status', 'seated')
+            .limit(1);
+
+          if (resData && resData.length > 0) {
+            const resId = resData[0].id;
+            await supabase.from('reservations').update({ table_id: destTable.id }).eq('id', resId);
+            addToOfflineQueue('update', 'reservations', { id: resId, table_id: destTable.id });
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to transfer table:", err);
+        alert(`Failed to transfer table: ${err.message || err}`);
+        setTables(previousTables);
+      }
+    } else {
+      const localRes = localStorage.getItem('table_maitre_reservations');
+      if (localRes) {
+        const parsed = JSON.parse(localRes);
+        const updated = parsed.map((r: any) => {
+          if (r.table_id === selectedTable.id && r.guest_name === selectedTable.reservation_name && r.status === 'seated') {
+            return { ...r, table_id: destTable.id };
+          }
+          return r;
+        });
+        localStorage.setItem('table_maitre_reservations', JSON.stringify(updated));
+      }
+
+      const localTables = localStorage.getItem('table_maitre_tables');
+      if (localTables) {
+        const parsed = JSON.parse(localTables);
+        const updated = parsed.map((t: any) => {
+          if (t.id === selectedTable.id) return { ...t, ...sourceUpdates };
+          if (t.id === destTable.id) return { ...t, ...destUpdates };
+          return t;
+        });
+        localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
       }
     }
   };
@@ -926,11 +1065,11 @@ export default function FloorPlan() {
                   <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Quick Status Shift</p>
                 </div>
                 {[
-                  { id: 'available', label: 'Set Available', icon: CheckCircle2, color: 'text-green-500' },
-                  { id: 'occupied', label: 'Seat Guests', icon: Users, color: 'text-[#3ecf8e]' },
-                  { id: 'reserved', label: 'Mark Reserved', icon: Clock, color: 'text-blue-500' },
-                  { id: 'billing', label: 'Process Bill', icon: Receipt, color: 'text-purple-500' },
-                  { id: 'cleaning', label: 'Maintenance', icon: AlertCircle, color: 'text-cyan-500' },
+                  { id: 'available', label: 'Open Table', icon: CheckCircle2, color: 'text-green-500' },
+                  { id: 'occupied', label: 'Seat Guest', icon: Users, color: 'text-[#3ecf8e]' },
+                  { id: 'reserved', label: 'Set Reserved', icon: Clock, color: 'text-blue-500' },
+                  { id: 'billing', label: 'Request Bill', icon: Receipt, color: 'text-purple-500' },
+                  { id: 'cleaning', label: 'Send to Cleaning', icon: AlertCircle, color: 'text-cyan-500' },
                 ].map((btn) => (
                   <button
                     key={btn.id}
@@ -1076,11 +1215,11 @@ export default function FloorPlan() {
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-3 font-mono">Status Shift Desk</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { id: 'available', label: 'Set Open', icon: CheckCircle2, color: 'text-green-500', bg: 'hover:bg-green-500/5' },
-                          { id: 'occupied', label: 'Seat Party', icon: Users, color: 'text-[#3ecf8e]', bg: 'hover:bg-[#3ecf8e]/5' },
-                          { id: 'reserved', label: 'Book Spot', icon: Clock, color: 'text-blue-500', bg: 'hover:bg-blue-500/5' },
-                          { id: 'billing', label: 'Process Bill', icon: Receipt, color: 'text-purple-500', bg: 'hover:bg-purple-500/5' },
-                          { id: 'cleaning', label: 'Maintain', icon: AlertCircle, color: 'text-cyan-500', bg: 'hover:bg-cyan-500/5' },
+                          { id: 'available', label: 'Open Table', icon: CheckCircle2, color: 'text-green-500', bg: 'hover:bg-green-500/5' },
+                          { id: 'occupied', label: 'Seat Guest', icon: Users, color: 'text-[#3ecf8e]', bg: 'hover:bg-[#3ecf8e]/5' },
+                          { id: 'reserved', label: 'Reserve Table', icon: Clock, color: 'text-blue-500', bg: 'hover:bg-blue-500/5' },
+                          { id: 'billing', label: 'Request Bill', icon: Receipt, color: 'text-purple-500', bg: 'hover:bg-purple-500/5' },
+                          { id: 'cleaning', label: 'Send to Cleaning', icon: AlertCircle, color: 'text-cyan-500', bg: 'hover:bg-cyan-500/5' },
                           { id: 'blocked', label: 'Deactivate', icon: XCircle, color: 'text-slate-600', bg: 'hover:bg-slate-700/5' },
                         ].map((btn) => (
                           <button
@@ -1242,6 +1381,47 @@ export default function FloorPlan() {
                         </div>
                       )}
                     </div>
+                    {selectedTable.status === 'occupied' && (
+                      <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-3 font-mono mt-4">
+                        <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] select-none text-slate-400">Section Table Transfer Console</h4>
+                        <p className="text-[9px] text-slate-600 leading-tight uppercase font-medium">Relocate active dining session to another available table.</p>
+                        
+                        <div className="space-y-3">
+                          <select
+                            value={transferTargetId}
+                            onChange={(e) => setTransferTargetId(e.target.value)}
+                            className="w-full bg-[#020617] border border-slate-800 rounded px-2.5 py-2 text-[10px] text-slate-200 focus:border-[#3ecf8e]/50 outline-none uppercase font-bold"
+                          >
+                            <option value="">Select Destination Table...</option>
+                            {tables
+                              .filter(t => t.id !== selectedTable.id && t.status === 'available' && t.store_id === (profile?.active_store || '0301'))
+                              .map(t => (
+                                <option key={t.id} value={t.id}>
+                                  Table {t.number} (Cap {t.capacity})
+                                </option>
+                              ))}
+                          </select>
+
+                          <select
+                            value={transferCleanAction}
+                            onChange={(e) => setTransferCleanAction(e.target.value as any)}
+                            className="w-full bg-[#020617] border border-slate-800 rounded px-2.5 py-2 text-[10px] text-slate-200 focus:border-[#3ecf8e]/50 outline-none uppercase font-bold"
+                          >
+                            <option value="cleaning">Send Source Table to Cleaning</option>
+                            <option value="available">Make Source Table Available</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={!transferTargetId}
+                            onClick={handleTableTransfer}
+                            className="w-full py-2 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] rounded-lg text-[9px] font-semibold uppercase tracking-wider hover:bg-[#3ecf8e] hover:text-[#020617] disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#3ecf8e] transition-all cursor-pointer font-bold"
+                          >
+                            Execute Table Transfer
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <form className="space-y-4" onSubmit={handleUpdateTableProperties}>
@@ -1310,14 +1490,14 @@ export default function FloorPlan() {
                       <button 
                         type="button"
                         onClick={() => {
-                          if (confirm('Decommission this unit? This is non-reversible.')) {
+                          if (confirm('Remove this table? This is non-reversible.')) {
                             handleDeleteTable(selectedTable.id);
                           }
                         }}
                         className="w-full py-1.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer h-10"
                       >
                         <Trash2 size={12} />
-                        Decommission Unit
+                        Remove Table
                       </button>
                     </div>
                   </form>
