@@ -76,6 +76,7 @@ export interface WaitlistEntry {
   phone: string;
   party_size: number;
   status: 'waiting' | 'seated' | 'cancelled';
+  notes?: string;
   created_at: string;
 }
 

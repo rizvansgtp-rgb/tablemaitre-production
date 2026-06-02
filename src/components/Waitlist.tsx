@@ -58,13 +58,7 @@ export default function Waitlist() {
 
         if (error) throw error;
         
-        // Attach locally stored notes to the entries
-        const mapped = (data || []).map((entry: any) => {
-          const storedNotes = localStorage.getItem(`waitlist_notes_${entry.id}`) || '';
-          return { ...entry, notes: storedNotes } as WaitlistEntry;
-        });
-
-        setEntries(mapped);
+        setEntries((data || []) as WaitlistEntry[]);
       } else {
         const local = localStorage.getItem('table_maitre_waitlist');
         if (local) {
@@ -116,7 +110,8 @@ export default function Waitlist() {
       guest_name: guestName,
       phone,
       party_size: partySize,
-      status: 'waiting'
+      status: 'waiting',
+      notes: notes || null
     };
 
     if (editingEntry) {
@@ -132,13 +127,7 @@ export default function Waitlist() {
 
           if (error) throw error;
           
-          if (notes) {
-            localStorage.setItem(`waitlist_notes_${editingEntry.id}`, notes);
-          } else {
-            localStorage.removeItem(`waitlist_notes_${editingEntry.id}`);
-          }
-
-          setEntries(prev => prev.map(w => w.id === editingEntry.id ? { ...w, ...payload, notes } : w));
+          setEntries(prev => prev.map(w => w.id === editingEntry.id ? { ...w, ...payload } : w));
         } catch (err: any) {
           console.error("Failed to update waitlist entry:", err);
           alert(`Failed to update waitlist: ${err.message || err}`);
@@ -166,11 +155,7 @@ export default function Waitlist() {
           if (error) throw error;
 
           if (data) {
-            if (notes) {
-              localStorage.setItem(`waitlist_notes_${data.id}`, notes);
-            }
-            const mapped = { ...data, notes } as WaitlistEntry;
-            setEntries(prev => [...prev, mapped]);
+            setEntries(prev => [...prev, data as WaitlistEntry]);
           }
         } catch (err: any) {
           console.error("Failed to create waitlist entry:", err);
@@ -203,7 +188,6 @@ export default function Waitlist() {
           if (error) throw error;
 
           setEntries(prev => prev.filter(w => w.id !== id));
-          localStorage.removeItem(`waitlist_notes_${id}`);
         } catch (err: any) {
           console.error("Failed to cancel waitlist entry:", err);
           alert(`Failed to cancel waitlist entry: ${err.message || err}`);
@@ -290,7 +274,6 @@ export default function Waitlist() {
 
         // Both updates succeeded
         setEntries(prev => prev.filter(e => e.id !== seatingEntry.id));
-        localStorage.removeItem(`waitlist_notes_${seatingEntry.id}`);
         setSeatingEntry(null);
         setSelectedTableId('');
         alert("Guest seated successfully!");

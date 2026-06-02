@@ -181,9 +181,9 @@ async function run() {
     await reloadAndNavigateTo(page, 'Waitlist');
     guestCardA = page.locator('div.group', { hasText: testGuestNameA });
     const cardTextPostRefresh = await guestCardA.innerText();
-    if (!cardTextPostRefresh.includes(testGuestNameA)) {
+    if (!cardTextPostRefresh.includes(testGuestNameA) || !cardTextPostRefresh.includes('QA Test Notes for Seating')) {
       results.addWaitlistGuest = 'FAIL';
-      console.error('❌ Fail: Waitlist guest did not persist after refresh.');
+      console.error('❌ Fail: Waitlist guest or notes did not persist after refresh.');
     }
 
 
@@ -390,6 +390,7 @@ async function run() {
     await page.fill('form input[placeholder="E.g., Pierre Gasly"]', testGuestNameB);
     await page.fill('form input[placeholder="+971 50 123 4567"]', testPhoneB);
     await page.fill('form input[type="number"]', '2');
+    await page.fill('form textarea', 'QA Cancel Notes');
     await page.click('form button[type="submit"]');
     await page.waitForTimeout(3000);
 
@@ -410,11 +411,24 @@ async function run() {
     const guestCardBCountPostRefresh = await page.locator('div.group', { hasText: testGuestNameB }).count();
     console.log(`Guest card B count after refresh: ${guestCardBCountPostRefresh}`);
 
-    if (guestCardBCount === 0 && guestCardBCountPostRefresh === 0) {
+    // Verify cancelled status and notes in DB
+    const { data: dbWaitlistB, error: dbWaitlistBErr } = await supabase
+      .from('waitlist')
+      .select('status, notes')
+      .eq('guest_name', testGuestNameB)
+      .single();
+      
+    if (dbWaitlistBErr) throw dbWaitlistBErr;
+    console.log('Cancelled guest DB check:', dbWaitlistB);
+    const isCancelledInDb = dbWaitlistB.status === 'cancelled';
+    const areNotesPreserved = dbWaitlistB.notes === 'QA Cancel Notes';
+
+    if (guestCardBCount === 0 && guestCardBCountPostRefresh === 0 && isCancelledInDb && areNotesPreserved) {
       console.log('✅ Success: Cancellation persisted and removed waitlist card.');
       results.cancelWaitlistEntry = 'PASS';
     } else {
       results.cancelWaitlistEntry = 'FAIL';
+      console.error('❌ Fail: Cancellation verification failed in DB:', { isCancelledInDb, areNotesPreserved });
     }
 
 

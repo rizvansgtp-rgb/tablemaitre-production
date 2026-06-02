@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS public.waitlist (
     phone TEXT NOT NULL,
     party_size INTEGER NOT NULL,
     status TEXT CHECK (status IN ('waiting', 'seated', 'cancelled')) DEFAULT 'waiting',
+    notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
