@@ -45,11 +45,36 @@ export default function Reservations() {
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Reservation['status']>('booked');
   const [tablesList, setTablesList] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
+
+  const sectionNameMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    sections.forEach(s => { map[s.id] = s.name; });
+    return map;
+  }, [sections]);
 
   useEffect(() => {
     if (profile?.active_store) {
       fetchReservations();
       
+      // Load sections
+      if (isSupabaseConfigured) {
+        (async () => {
+          try {
+            const { data } = await supabase.from('sections').select('*').eq('store_id', profile.active_store);
+            setSections(data || []);
+          } catch (err) {
+            console.error("Error fetching sections:", err);
+          }
+        })();
+      } else {
+        const local = localStorage.getItem('table_maitre_sections');
+        if (local) {
+          const parsed = JSON.parse(local);
+          setSections(parsed.filter((s: any) => s.store_id === profile.active_store));
+        }
+      }
+
       // Load tables list for dropdown
       if (isSupabaseConfigured) {
         (async () => {
@@ -194,7 +219,7 @@ export default function Reservations() {
     if (!resItem) return;
 
     if (status === 'seated' && !resItem.table_id) {
-      alert("Validation Error: Please assign a table to this reservation before seating.");
+      alert("Please select a table before seating this guest.");
       return;
     }
 
@@ -287,8 +312,16 @@ export default function Reservations() {
     }
 
     if (status === 'seated' && !tableId) {
-      alert("Validation Error: Please assign a table to this reservation before seating.");
+      alert("Please select a table before seating this guest.");
       return;
+    }
+
+    if (status === 'seated' && tableId) {
+      const selectedTable = tablesList.find(tbl => tbl.id === tableId);
+      if (selectedTable && selectedTable.status !== 'available' && !(editingRes && editingRes.table_id === tableId)) {
+        alert("Please select an open table before seating this guest.");
+        return;
+      }
     }
 
     // 1. Duplicate passenger/guest check on same date
@@ -732,14 +765,60 @@ export default function Reservations() {
                     <select 
                       value={tableId}
                       onChange={(e) => setTableId(e.target.value)}
-                      className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#3ecf8e] font-mono"
+                      className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-[#3ecf8e] font-mono cursor-pointer"
                     >
-                      <option value="">Unassigned / Walkin</option>
-                      {tablesList.map(t => (
-                        <option key={t.id} value={t.id}>
-                          Table {t.number || t.name} (Cap {t.capacity})
-                        </option>
-                      ))}
+                      <option value="">Unassigned / Walk-in</option>
+                      {(() => {
+                        const getStatusPriority = (status: string) => {
+                          const priorities: Record<string, number> = {
+                            available: 1,
+                            reserved: 2,
+                            occupied: 3,
+                            billing: 4,
+                            cleaning: 5,
+                            blocked: 6
+                          };
+                          return priorities[status] || 99;
+                        };
+
+                        const getStatusLabel = (status: string) => {
+                          const labels: Record<string, string> = {
+                            available: 'Open',
+                            reserved: 'Reserved',
+                            occupied: 'Seated',
+                            billing: 'Billing',
+                            cleaning: 'Cleaning',
+                            blocked: 'Blocked'
+                          };
+                          return labels[status] || status;
+                        };
+
+                        const sortedTables = [...tablesList].sort((a, b) => {
+                          const pA = getStatusPriority(a.status);
+                          const pB = getStatusPriority(b.status);
+                          if (pA !== pB) return pA - pB;
+
+                          const secNameA = sectionNameMap[a.section_id] || '';
+                          const secNameB = sectionNameMap[b.section_id] || '';
+                          const secComp = secNameA.localeCompare(secNameB);
+                          if (secComp !== 0) return secComp;
+
+                          return a.number.localeCompare(b.number, undefined, { numeric: true });
+                        });
+
+                        return sortedTables.map(t => {
+                          const secName = sectionNameMap[t.section_id] || 'General';
+                          const isLinked = editingRes && editingRes.table_id === t.id;
+                          const isNotOpen = t.status !== 'available';
+                          const isDisabled = isNotOpen && !isLinked;
+                          
+                          return (
+                            <option key={t.id} value={t.id} disabled={isDisabled}>
+                              {secName} - Table {t.number} ({getStatusLabel(t.status)}, Cap {t.capacity})
+                            </option>
+                          );
+                        });
+                      })()}
                     </select>
                   </div>
                   <div>

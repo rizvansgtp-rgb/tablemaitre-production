@@ -95,7 +95,7 @@ export default function Reports() {
   // Filters State
   const [activeStore, setActiveStore] = useState(profile?.active_store || '0301');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [dateFilter, setDateFilter] = useState('AllTime'); // Today, Tomorrow, Yesterday, Last7D, AllTime
+  const [dateFilter, setDateFilter] = useState('ThisMonth'); // Today, Tomorrow, Yesterday, Last7D, ThisMonth, AllTime
 
   useEffect(() => {
     fetchTelemetry();
@@ -197,6 +197,12 @@ export default function Reports() {
       const resTime = new Date(res.datetime).getTime();
       const diffDays = (localNow.getTime() - resTime) / (1000 * 60 * 60 * 24);
       if (diffDays < 0 || diffDays > 7) return false;
+    }
+
+    if (dateFilter === 'ThisMonth') {
+      const resDate = new Date(res.datetime);
+      const isCurrentMonth = resDate.getMonth() === localNow.getMonth() && resDate.getFullYear() === localNow.getFullYear();
+      if (!isCurrentMonth) return false;
     }
 
     return true;
@@ -331,8 +337,8 @@ export default function Reports() {
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="page-title">Live Metrics & Analytics</h2>
-          <p className="page-subtitle">Historical aggregate databases.</p>
+          <h2 className="page-title">Restaurant Performance Reports</h2>
+          <p className="page-subtitle">Detailed summaries of reservations, tables, and waitlist activity.</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -349,7 +355,7 @@ export default function Reports() {
              className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer shadow-xl"
           >
              {loading ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
-             Refresh Metrics
+             Refresh Reports
           </button>
         </div>
       </div>
@@ -386,22 +392,32 @@ export default function Reports() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Temporal Window</label>
-          <div className="flex gap-1">
-            {['AllTime', 'Today', 'Tomorrow', 'Yesterday', 'Last7D'].map((timeOpt) => (
-              <button
-                key={timeOpt}
-                onClick={() => setDateFilter(timeOpt)}
-                className={cn(
-                  "flex-1 py-1.5 border rounded text-[9px] font-bold uppercase tracking-wider font-mono",
-                  dateFilter === timeOpt 
-                    ? "bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30" 
-                    : "bg-[#020617]/50 border-slate-800 text-slate-500 hover:text-slate-350"
-                )}
-              >
-                {timeOpt === 'AllTime' ? 'ALL' : timeOpt.toUpperCase()}
-              </button>
-            ))}
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date Range</label>
+          <div className="flex flex-wrap gap-1">
+            {['AllTime', 'Today', 'Tomorrow', 'Yesterday', 'Last7D', 'ThisMonth'].map((timeOpt) => {
+              const labelMap: Record<string, string> = {
+                AllTime: 'ALL TIME',
+                Today: 'TODAY',
+                Tomorrow: 'TOMORROW',
+                Yesterday: 'YESTERDAY',
+                Last7D: 'LAST 7 DAYS',
+                ThisMonth: 'THIS MONTH'
+              };
+              return (
+                <button
+                  key={timeOpt}
+                  onClick={() => setDateFilter(timeOpt)}
+                  className={cn(
+                    "flex-1 min-w-[70px] py-1.5 border rounded text-[9px] font-bold uppercase tracking-wider font-mono",
+                    dateFilter === timeOpt 
+                      ? "bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30" 
+                      : "bg-[#020617]/50 border-slate-800 text-slate-500 hover:text-slate-350"
+                  )}
+                >
+                  {labelMap[timeOpt] || timeOpt}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -409,120 +425,148 @@ export default function Reports() {
       {loading ? (
         <div className="h-96 flex flex-col items-center justify-center gap-3">
           <Loader2 className="animate-spin text-[#3ecf8e]" size={36} />
-          <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Aggregating metrics...</p>
+          <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Aggregating reports...</p>
         </div>
       ) : (
         <>
-          {/* Bento-grid of 13 Performance metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            <PerformanceCard label="Open Tables" value={availableTables} icon={CheckCircle2} color="text-green-500" />
-            <PerformanceCard label="Seated Tables" value={occupiedTables} icon={Bookmark} color="text-[#3ecf8e]" />
-            <PerformanceCard label="Reserved Tables" value={reservedTables} icon={Clock} color="text-blue-400" />
-            <PerformanceCard label="Billing Tables" value={billingTables} icon={Receipt} color="text-yellow-400" />
-            <PerformanceCard label="Cleaning Tables" value={cleaningTables} icon={Brush} color="text-cyan-400" />
-            <PerformanceCard label="Wait Queue" value={activeWaitQueue} icon={AlertCircle} color="text-amber-500" />
-            <PerformanceCard label="Total Covers" value={totalPax} icon={Users} color="text-[#3ecf8e]" />
-            <PerformanceCard label="Adult Pax" value={totalAdults} icon={Users} color="text-[#3ecf8e]" />
-            <PerformanceCard label="Kids Pax" value={totalKids} icon={Users} color="text-pink-400" />
-            <PerformanceCard label="Walk-ins" value={walkinsCount} icon={User} color="text-amber-400" />
-            <PerformanceCard label="Cancelled" value={cancelledReservations} icon={XCircle} color="text-red-400" />
-            <PerformanceCard label="No-shows" value={noShows} icon={XCircle} color="text-red-500" />
-            <PerformanceCard label="Completed" value={completedReservations} icon={CheckCircle2} color="text-green-400" />
-          </div>
+          {/* Reservation Summary Section */}
+          <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
+            <h3 className="text-sm font-bold text-white uppercase tracking-[0.2em] border-b border-slate-800 pb-3 flex items-center gap-2">
+              <CalendarDays size={14} className="text-[#3ecf8e]" />
+              Reservation Summary
+            </h3>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Charts - Hourly Reservation Load */}
-            <div className="lg:col-span-2 space-y-8">
-              <div className="glass-card" style={{ padding: 24, height: 380, display: 'flex', flexDirection: 'column' }}>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e]" />
-                    Hourly Reservation Load (Demand Forecast)
-                  </h3>
-                  <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Covers/Hour</span>
-                </div>
-                <div className="flex-1 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={hourlyCounts}>
-                      <defs>
-                        <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3ecf8e" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="#3ecf8e" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                      <XAxis dataKey="name" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '10px' }} />
-                      <Area type="monotone" dataKey="load" stroke="#3ecf8e" fillOpacity={1} fill="url(#colorLoad)" strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+            {filteredRes.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 bg-[#020617]/50 border border-slate-800/80 border-dashed rounded-xl font-mono text-xs">
+                No reservations found for this period.
               </div>
-
-              {/* Table Occupancy / Diagnostics */}
-              <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                    Live Floor Table Occupancy Rate
-                  </h3>
-                  <span className="text-[#3ecf8e] font-mono text-xs font-bold">{tableOccupancyPercent}%</span>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                  <PerformanceCard label="Total Covers" value={totalPax} icon={Users} color="text-[#3ecf8e]" />
+                  <PerformanceCard label="Adult Pax" value={totalAdults} icon={Users} color="text-[#3ecf8e]" />
+                  <PerformanceCard label="Kids Pax" value={totalKids} icon={Users} color="text-pink-400" />
+                  <PerformanceCard label="Walk-ins" value={walkinsCount} icon={User} color="text-amber-400" />
+                  <PerformanceCard label="Cancelled" value={cancelledReservations} icon={XCircle} color="text-red-400" />
+                  <PerformanceCard label="No-shows" value={noShows} icon={XCircle} color="text-red-500" />
+                  <PerformanceCard label="Completed" value={completedReservations} icon={CheckCircle2} color="text-green-400" />
+                  <PerformanceCard label="Today Bookings" value={todayReservationsTotal} icon={Bookmark} color="text-blue-400" />
                 </div>
-                <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${tableOccupancyPercent}%` }}
-                    className="h-full bg-gradient-to-r from-emerald-500 to-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.4)]"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-500 font-mono uppercase mt-3">
-                  Store {activeStore === 'AllBranches' ? "Aggregate network" : activeStore} has {occupiedTables + billingTables} occupied/billing tables of {totalTablesCount} total capacity.
-                </p>
-              </div>
-            </div>
 
-            {/* Right Panel - Guest Nationalities Report & Stores Summary */}
-            <div className="space-y-8">
-              {/* Guest Nationality bar chart */}
-              <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl h-[260px] flex flex-col">
-                <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Globe size={14} className="text-[#3ecf8e]" />
-                  Guest Nationality Report
-                </h3>
-                <div className="flex-1 w-full flex items-center justify-center">
-                  {nationalityChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={nationalityChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                        <XAxis dataKey="name" stroke="#475569" fontSize={10} tickLine={false} />
-                        <YAxis stroke="#475569" fontSize={10} tickLine={false} allowDecimals={false} />
-                        <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '10px' }} />
-                        <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <p className="text-[10px] text-slate-500 font-mono uppercase text-center py-8">No guest nationality profiles registered</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Branch store-wise reservations list */}
-              <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col">
-                <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">
-                  Multi-Store Reservations
-                </h3>
-                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-                  {branchData.map(b => (
-                    <div key={b.storeId} className="flex items-center justify-between text-xs font-mono py-1.5 border-b border-slate-800/30">
-                      <span className="text-slate-350">{b.storeName}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-slate-500">Covers: {b.capacity}</span>
-                        <span className="text-[#3ecf8e] font-bold">{b.bookings} Bookings</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Left Charts - Hourly Reservation Load */}
+                  <div className="lg:col-span-2 space-y-8">
+                    <div className="glass-card" style={{ padding: 24, height: 380, display: 'flex', flexDirection: 'column' }}>
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e]" />
+                          Hourly Reservation Load
+                        </h3>
+                        <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Covers/Hour</span>
+                      </div>
+                      <div className="flex-1 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={hourlyCounts}>
+                            <defs>
+                              <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3ecf8e" stopOpacity={0.25}/>
+                                <stop offset="95%" stopColor="#3ecf8e" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                            <XAxis dataKey="name" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                            <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '10px' }} />
+                            <Area type="monotone" dataKey="load" stroke="#3ecf8e" fillOpacity={1} fill="url(#colorLoad)" strokeWidth={2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Right Panel - Guest Nationalities Report */}
+                  <div className="space-y-8">
+                    <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl h-[380px] flex flex-col">
+                      <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <Globe size={14} className="text-[#3ecf8e]" />
+                        Guest Profiles
+                      </h3>
+                      <div className="flex-1 w-full flex items-center justify-center">
+                        {nationalityChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={nationalityChartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                              <XAxis dataKey="name" stroke="#475569" fontSize={10} tickLine={false} />
+                              <YAxis stroke="#475569" fontSize={10} tickLine={false} allowDecimals={false} />
+                              <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '10px' }} />
+                              <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 font-mono uppercase text-center py-8">No guest profile data</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </>
+            )}
+          </div>
+
+          {/* Table Utilization Section */}
+          <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
+            <h3 className="text-sm font-bold text-white uppercase tracking-[0.2em] border-b border-slate-800 pb-3 flex items-center gap-2">
+              <TrendingUp size={14} className="text-[#3ecf8e]" />
+              Table Utilization
+            </h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <PerformanceCard label="Open Tables" value={availableTables} icon={CheckCircle2} color="text-green-500" />
+              <PerformanceCard label="Seated Tables" value={occupiedTables} icon={Bookmark} color="text-[#3ecf8e]" />
+              <PerformanceCard label="Reserved Tables" value={reservedTables} icon={Clock} color="text-blue-400" />
+              <PerformanceCard label="Billing Tables" value={billingTables} icon={Receipt} color="text-yellow-400" />
+              <PerformanceCard label="Cleaning Tables" value={cleaningTables} icon={Brush} color="text-cyan-400" />
+            </div>
+
+            <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  Live Floor Table Occupancy Rate
+                </h3>
+                <span className="text-[#3ecf8e] font-mono text-xs font-bold">{tableOccupancyPercent}%</span>
+              </div>
+              <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${tableOccupancyPercent}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-500 to-[#3ecf8e] shadow-[0_0_10px_rgba(62,207,142,0.4)]"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 font-mono uppercase mt-3">
+                Active branch has {occupiedTables + billingTables} occupied/billing tables of {totalTablesCount} total tables.
+              </p>
+            </div>
+          </div>
+
+          {/* Wait Queue Summary Section */}
+          <div className="bg-[#0f172a]/30 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
+            <h3 className="text-sm font-bold text-white uppercase tracking-[0.2em] border-b border-slate-800 pb-3 flex items-center gap-2">
+              <Users size={14} className="text-amber-500" />
+              Wait Queue Summary
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-6 rounded-2xl bg-[#020617]/50 border border-slate-800 flex flex-col justify-between min-h-[140px]">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Parties in Queue</p>
+                <h3 className="text-3xl font-black text-amber-500">{activeWaitQueue}</h3>
+                <p className="text-[9px] font-mono text-slate-600 uppercase mt-2">Active waiting guests</p>
+              </div>
+
+              <div className="md:col-span-2 p-6 rounded-2xl bg-[#020617]/50 border border-slate-800 flex flex-col justify-center">
+                <p className="text-xs text-slate-400 leading-relaxed font-mono">
+                  Waitlist metrics are generated from the active walk-in registry. Seat parties directly from the Waitlist panel to clear queue occupancy.
+                </p>
               </div>
             </div>
           </div>

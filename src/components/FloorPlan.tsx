@@ -679,6 +679,61 @@ export default function FloorPlan() {
     }
   };
 
+  const handleAutoArrangeAll = async () => {
+    if (profile?.role === 'waiter') return;
+    let updatedTables = [...tables];
+    const allUpdates: { id: string, x: number, y: number }[] = [];
+
+    sections.forEach(sec => {
+      const sectionTables = [...tables]
+        .filter(t => t.section_id === sec.id)
+        .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+      sectionTables.forEach((table, index) => {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        const nextX = col * 180 + 80;
+        const nextY = row * 160 + 80;
+        allUpdates.push({ id: table.id, x: nextX, y: nextY });
+      });
+    });
+
+    if (allUpdates.length === 0) return;
+
+    setTables(prev => prev.map(t => {
+      const match = allUpdates.find(u => u.id === t.id);
+      if (match) return { ...t, x: match.x, y: match.y };
+      return t;
+    }));
+
+    for (const update of allUpdates) {
+      addToOfflineQueue('update', 'restaurant_tables', { id: update.id, x: update.x, y: update.y });
+      if (isSupabaseConfigured) {
+        try {
+          await supabase
+            .from('restaurant_tables')
+            .update({ x: update.x, y: update.y })
+            .eq('id', update.id);
+        } catch (err) {
+          console.error(`Failed to auto-arrange table ${update.id}:`, err);
+        }
+      }
+    }
+
+    if (!isSupabaseConfigured) {
+      const local = localStorage.getItem('table_maitre_tables');
+      if (local) {
+        const parsed = JSON.parse(local);
+        const updated = parsed.map((t: any) => {
+          const match = allUpdates.find(u => u.id === t.id);
+          if (match) return { ...t, x: match.x, y: match.y };
+          return t;
+        });
+        localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
+      }
+    }
+  };
+
   const handleTableContextMenu = (e: React.MouseEvent, tableId: string) => {
     e.preventDefault();
     if (isEditing) return;
@@ -883,6 +938,17 @@ export default function FloorPlan() {
             </div>
           )}
 
+          {/* Auto Arrange All Sections — when in 'All' view */}
+          {profile?.role !== 'waiter' && activeSection === 'All' && (
+            <button
+              onClick={handleAutoArrangeAll}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-950 border border-indigo-500/30 text-indigo-300 hover:text-white hover:border-indigo-400 rounded text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer shadow-md"
+              title="Auto Arrange All Sections"
+            >
+              Auto Arrange All Sections
+            </button>
+          )}
+
           {/* Auto Arrange — only in edit mode */}
           {profile?.role !== 'waiter' && activeSection !== 'All' && isEditing && (
             <button
@@ -943,62 +1009,96 @@ export default function FloorPlan() {
             </button>
           </div>
         ) : activeSection === 'All' ? (
-          /* ── ALL SECTIONS OVERVIEW — read-only, no drag, no coordinate mutation ── */
-          <div className="w-full h-full overflow-y-auto p-4 grid grid-cols-1 xl:grid-cols-2 gap-6 pb-20">
-            {sections.map(s => {
-              const sectionTables = tables
-                .filter(t => t.section_id === s.id)
-                .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+          /* ── ALL SECTIONS COMMON OVERVIEW CANVAS ── */
+          <div className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-auto shadow-inner">
+            <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
+              All Sections Common Overview
+            </div>
 
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => setActiveSection(s.id)}
-                  className="glass-panel border border-slate-800/80 rounded-2xl p-5 flex flex-col min-h-[360px] bg-[#07111f]/60 backdrop-blur-xl cursor-pointer hover:border-slate-700 transition-all"
-                >
-                  <div className="flex items-center justify-between mb-4 border-b border-slate-800/40 pb-2">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#3ecf8e]">{s.name}</h3>
-                    <span className="text-[10px] font-mono text-slate-500">{sectionTables.length} Tables</span>
-                  </div>
+            <div
+              className="relative"
+              style={{
+                width: `${CANVAS_W}px`,
+                height: `${CANVAS_H}px`,
+                minWidth: `${CANVAS_W}px`,
+                minHeight: `${CANVAS_H}px`,
+              }}
+            >
+              {/* Dot grid background */}
+              <div
+                className="absolute inset-0 opacity-[0.035] pointer-events-none"
+                style={{ backgroundImage: 'radial-gradient(circle, #3ecf8e 1.5px, transparent 1.5px)', backgroundSize: '40px 40px' }}
+              />
 
-                  {/* Mini canvas — local coordinates scaled to fit */}
-                  <div className="flex-1 relative bg-[#020617]/50 rounded-xl overflow-hidden border border-slate-900/60 min-h-[220px]">
-                    <div
-                      className="absolute inset-0 opacity-[0.02] pointer-events-none"
-                      style={{ backgroundImage: 'radial-gradient(circle, #3ecf8e 1px, transparent 1px)', backgroundSize: '20px 20px' }}
-                    />
-                    {sectionTables.map(table => (
-                      <div
-                        key={table.id}
-                        style={{
-                          position: 'absolute',
-                          // Scale local x/y (0..CANVAS_W, 0..CANVAS_H) to percentage of mini-canvas
-                          left: `${Math.min(90, Math.max(5, (table.x / CANVAS_W) * 100))}%`,
-                          top: `${Math.min(90, Math.max(5, (table.y / CANVAS_H) * 100))}%`,
-                          transform: 'translate(-50%, -50%)',
-                        }}
-                        className="z-10 select-none cursor-pointer table-node-interactive"
-                      >
-                        <div className="scale-[0.55] origin-center">
-                          <TableIcon
-                            table={table}
-                            isEditing={false}
-                            selectedTable={selectedTable}
-                            setSelectedTable={() => {}}
-                            handleTableContextMenu={() => {}}
-                          />
+              {sections.map((s, idx) => {
+                const cols = sections.length <= 1 ? 1 : sections.length <= 2 ? 2 : sections.length <= 4 ? 2 : 3;
+                const rows = Math.ceil(sections.length / cols);
+                const zoneW = CANVAS_W / cols;
+                const zoneH = CANVAS_H / rows;
+
+                const colIdx = idx % cols;
+                const rowIdx = Math.floor(idx / cols);
+                const zoneX = colIdx * zoneW;
+                const zoneY = rowIdx * zoneH;
+
+                const sectionTables = tables
+                  .filter(t => t.section_id === s.id)
+                  .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => setActiveSection(s.id)}
+                    style={{
+                      position: 'absolute',
+                      left: `${zoneX}px`,
+                      top: `${zoneY}px`,
+                      width: `${zoneW}px`,
+                      height: `${zoneH}px`,
+                    }}
+                    className="border border-slate-800/80 bg-[#07111f]/30 hover:bg-[#07111f]/55 backdrop-blur-sm cursor-pointer hover:border-[#3ecf8e]/30 transition-all p-4 flex flex-col group overflow-hidden"
+                  >
+                    {/* Zone Header */}
+                    <div className="flex items-center justify-between mb-2 border-b border-slate-800/40 pb-1.5 select-none">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#3ecf8e] group-hover:text-white transition-colors">{s.name} Zone</span>
+                      <span className="text-[8px] font-mono text-slate-500 font-bold uppercase">{sectionTables.length} Tables</span>
+                    </div>
+
+                    {/* Zone content (scaled container) */}
+                    <div className="flex-1 relative w-full h-full overflow-hidden">
+                      {sectionTables.map(table => (
+                        <div
+                          key={table.id}
+                          style={{
+                            position: 'absolute',
+                            left: `${Math.min(92, Math.max(8, (table.x / CANVAS_W) * 100))}%`,
+                            top: `${Math.min(90, Math.max(10, (table.y / CANVAS_H) * 100))}%`,
+                            transform: 'translate(-50%, -50%)',
+                          }}
+                          className="z-10 select-none pointer-events-none"
+                        >
+                          <div className="scale-[0.5] origin-center">
+                            <TableIcon
+                              table={table}
+                              isEditing={false}
+                              selectedTable={selectedTable}
+                              setSelectedTable={() => {}}
+                              handleTableContextMenu={() => {}}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {sectionTables.length === 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-slate-600 uppercase tracking-wider">
-                        No tables in section
-                      </div>
-                    )}
+                      ))}
+
+                      {sectionTables.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center text-[8px] font-mono text-slate-600 uppercase tracking-widest select-none">
+                          No tables in section
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
         ) : activeSection !== 'All' && viewMode === 'list' ? (
