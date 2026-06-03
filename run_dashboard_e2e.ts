@@ -65,8 +65,9 @@ async function run() {
 
   try {
     // 1. Open TableMaître
-    console.log('Navigating to http://localhost:3000...');
-    await page.goto('http://localhost:3000');
+    const targetUrl = process.env.TARGET_URL || 'http://localhost:3000';
+    console.log(`Navigating to ${targetUrl}...`);
+    await page.goto(targetUrl);
     await page.waitForTimeout(2000);
 
     // 2. Login
@@ -120,7 +121,7 @@ async function run() {
     let table = page.locator(`.table-node-interactive`, { hasText: testTableName });
     await clickTable(table);
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("Seat Party")');
+    await page.click('button:has-text("Seat Guest")');
     await page.waitForTimeout(3000);
 
     // 5. Verify counts updated
@@ -150,7 +151,7 @@ async function run() {
     table = page.locator(`.table-node-interactive`, { hasText: testTableName });
     await clickTable(table);
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("Set Open")');
+    await page.click('button:has-text("Open Table")');
     await page.waitForTimeout(3000);
 
     // 7. Verify counts updated back
@@ -221,7 +222,7 @@ async function run() {
     table = page.locator(`.table-node-interactive`, { hasText: testTableName });
     await clickTable(table);
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("Book Spot")'); // Sets to reserved
+    await page.click('button:has-text("Reserve Table")'); // Sets to reserved
     await page.waitForTimeout(3000);
 
     // Check stroke color
@@ -237,7 +238,7 @@ async function run() {
     // Test billing
     await clickTable(table);
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("Process Bill")'); // Sets to billing
+    await page.click('button:has-text("Request Bill")'); // Sets to billing
     await page.waitForTimeout(3000);
     strokeClass = await table.locator('.table-body-shape').getAttribute('class');
     console.log('Billing stroke class:', strokeClass);
@@ -251,7 +252,7 @@ async function run() {
     // Test cleaning
     await clickTable(table);
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("Maintain")'); // Sets to cleaning
+    await page.click('button:has-text("Send to Cleaning")'); // Sets to cleaning
     await page.waitForTimeout(3000);
     strokeClass = await table.locator('.table-body-shape').getAttribute('class');
     console.log('Cleaning stroke class:', strokeClass);
@@ -336,6 +337,7 @@ async function run() {
 
   } catch (err: any) {
     console.error('❌ E2E Test execution failed:', err);
+    await page.screenshot({ path: 'c:/Users/Mohammed_ITCPG/.gemini/antigravity-ide/brain/dd2fc85e-1c46-477d-aee5-f7603366f566/dashboard-fail-screenshot.png' }).catch(() => {});
   } finally {
     await browser.close();
   }

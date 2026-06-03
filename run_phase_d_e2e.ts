@@ -241,7 +241,8 @@ async function run() {
     // 8. Reports Tab check
     console.log('Navigating to Reports...');
     await page.click('button[title="Reports"], button:has-text("Reports")');
-    await page.waitForTimeout(3000);
+    // Wait for loading to finish by waiting for the Open Tables card to render
+    await page.waitForSelector('text=Open Tables', { timeout: 15000 });
 
     const reportsText = await page.locator('main').innerText();
     if (reportsText.includes('Singapore') || reportsText.includes('Node Telemetry') || reportsText.includes('Section Intensity')) {

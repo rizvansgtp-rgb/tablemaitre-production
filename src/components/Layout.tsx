@@ -209,9 +209,12 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
                     transition: 'all 150ms'
                   }}
                 />
-                {!isCollapsed && (
-                  <span className="truncate flex-1">{item.label}</span>
-                )}
+                <span
+                  className="truncate flex-1"
+                  style={isCollapsed ? { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 } : {}}
+                >
+                  {item.label}
+                </span>
                 {!isCollapsed && isActive && (
                   <div style={{
                     width: 5, height: 5, borderRadius: '50%',
