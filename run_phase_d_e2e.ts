@@ -1,8 +1,11 @@
 import { chromium } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 const EMAIL = 'mohammed@chinesepalacegroup.com';
 const PASSWORD = process.env.TEST_PASSWORD || '';
 const TARGET_URL = process.env.TARGET_URL || 'http://localhost:3000';
@@ -30,6 +33,24 @@ async function run() {
   console.log('\n--- STARTING BROWSER E2E FOR PHASE D ---');
   console.log(`Target URL: ${TARGET_URL}`);
   console.log(`Testing with User: ${EMAIL}`);
+
+  // Clear active_store in database to force Store Selector view
+  console.log('Clearing active_store in database to force Store Selector view...');
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const loginResult = await supabase.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+  if (loginResult.error) {
+    console.error('❌ Supabase Auth failed in test setup:', loginResult.error.message);
+  } else {
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ active_store: null })
+      .eq('id', loginResult.data.user.id);
+    if (updateError) {
+      console.error('❌ Failed to clear active_store in test setup:', updateError.message);
+    } else {
+      console.log('✅ Successfully cleared active_store in database.');
+    }
+  }
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
@@ -61,6 +82,7 @@ async function run() {
 
     // 2. Store Selector Screen Check
     console.log('Verifying Store Selector page content...');
+    await page.waitForSelector('button.glass-card', { timeout: 15000 });
     const bodyText = await page.innerText('body');
     if (bodyText.includes('Singapore') || bodyText.includes('ST-0303') || bodyText.includes('ST-0309')) {
       throw new Error('Detected forbidden Singapore or unassigned store label on Store Selector screen!');
@@ -257,6 +279,12 @@ async function run() {
     console.log('=======================================');
   } catch (err: any) {
     console.error('❌ E2E Verification failed:', err.message || err);
+    try {
+      await page.screenshot({ path: 'C:/Users/Mohammed_ITCPG/.gemini/antigravity-ide/brain/dd2fc85e-1c46-477d-aee5-f7603366f566/screenshot-crash-d.png' });
+      console.log('Saved crash screenshot to screenshot-crash-d.png');
+    } catch (e) {
+      console.error('Failed to save screenshot:', e);
+    }
     console.log('\n--- CURRENT TEST STATES ---');
     console.log(JSON.stringify(results, null, 2));
     await browser.close();

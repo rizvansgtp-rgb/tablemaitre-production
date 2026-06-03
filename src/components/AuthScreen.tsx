@@ -276,7 +276,7 @@ export default function AuthScreen() {
                     </svg>
                     Processing...
                   </span>
-                ) : isLogin ? 'Sign In to Dashboard' : 'Create Account'}
+                ) : isLogin ? 'Enter Workspace' : 'Create Account'}
               </button>
             </form>
 

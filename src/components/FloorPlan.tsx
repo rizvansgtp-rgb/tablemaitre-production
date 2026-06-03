@@ -36,6 +36,7 @@ export default function FloorPlan() {
   const [quickMenu, setQuickMenu] = useState<{ x: number, y: number, tableId: string } | null>(null);
   const [transferTargetId, setTransferTargetId] = useState<string>('');
   const [transferCleanAction, setTransferCleanAction] = useState<'cleaning' | 'available'>('cleaning');
+  const [viewMode, setViewMode] = useState<'floor' | 'list'>('floor');
 
   // Pan and Zoom workspace viewState
   const [viewState, setViewState] = useState({ x: 50, y: 50, scale: 0.85 });
@@ -91,6 +92,12 @@ export default function FloorPlan() {
           const storeSecs = parsed.filter((s: any) => s.store_id === storeId);
           if (storeSecs.length > 0) {
             setSections(storeSecs);
+            setActiveSection(prev => {
+              if (prev === 'All' || !storeSecs.some((s: any) => s.id === prev)) {
+                return storeSecs[0].id;
+              }
+              return prev;
+            });
             return;
           }
         }
@@ -108,6 +115,12 @@ export default function FloorPlan() {
         allSections = [...allSections, ...demoSecs];
         localStorage.setItem('table_maitre_sections', JSON.stringify(allSections));
         setSections(demoSecs);
+        setActiveSection(prev => {
+          if (prev === 'All' || !demoSecs.some((s: any) => s.id === prev)) {
+            return demoSecs[0].id;
+          }
+          return prev;
+        });
         return;
       }
 
@@ -123,6 +136,12 @@ export default function FloorPlan() {
       } else if (data && data.length > 0) {
         const sorted = [...data].sort((a: any, b: any) => a.name.localeCompare(b.name));
         setSections(sorted);
+        setActiveSection(prev => {
+          if (prev === 'All' || !sorted.some((s: any) => s.id === prev)) {
+            return sorted[0].id;
+          }
+          return prev;
+        });
       } else {
         setSections([]);
       }
@@ -283,26 +302,6 @@ export default function FloorPlan() {
       if (status === 'billing' || status === 'cleaning') {
         isBlocked = true;
         message = `Invalid Shift: An open table cannot directly transition to ${status === 'billing' ? 'billing' : 'cleaning'}.`;
-      }
-    } else if (current === 'reserved') {
-      if (status === 'billing' || status === 'cleaning') {
-        isBlocked = true;
-        message = `Invalid Shift: A reserved table cannot transition directly to ${status === 'billing' ? 'billing' : 'cleaning'}. It must be seated first.`;
-      }
-    } else if (current === 'occupied') {
-      if (status === 'available' || status === 'reserved' || status === 'cleaning') {
-        isBlocked = true;
-        message = `Invalid Shift: A seated table must request bill first.`;
-      }
-    } else if (current === 'billing') {
-      if (status === 'available' || status === 'reserved' || status === 'occupied') {
-        isBlocked = true;
-        message = `Invalid Shift: A table in billing must transition to cleaning before it can be seated, reserved, or opened.`;
-      }
-    } else if (current === 'cleaning') {
-      if (status === 'reserved' || status === 'occupied' || status === 'billing') {
-        isBlocked = true;
-        message = `Invalid Shift: A table in cleaning must be opened (made Open) before it can be reserved, seated, or request bill.`;
       }
     }
 
@@ -676,17 +675,31 @@ export default function FloorPlan() {
     e.stopPropagation();
     setDraggingTableId(table.id);
     setDragOffset({
-      x: (e.clientX / viewState.scale) - table.x,
-      y: (e.clientY / viewState.scale) - table.y
+      x: e.clientX - table.x,
+      y: e.clientY - table.y
     });
   };
 
   const handleTablePointerMove = (e: React.PointerEvent, table: Table) => {
     if (draggingTableId !== table.id) return;
     e.stopPropagation();
-    const newX = Math.round((e.clientX / viewState.scale) - dragOffset.x);
-    const newY = Math.round((e.clientY / viewState.scale) - dragOffset.y);
-    setTables(prev => prev.map(t => t.id === table.id ? { ...t, x: newX, y: newY } : t));
+    
+    const secIndex = sections.findIndex(s => s.id === activeSection);
+    const offsetX = secIndex >= 0 ? (secIndex % 2) * 800 : 0;
+    const offsetY = secIndex >= 0 ? Math.floor(secIndex / 2) * 500 : 0;
+
+    const newX = Math.round(e.clientX - dragOffset.x);
+    const newY = Math.round(e.clientY - dragOffset.y);
+    
+    const localX = newX - offsetX;
+    const localY = newY - offsetY;
+    const clampedLocalX = Math.max(10, Math.min(710, localX));
+    const clampedLocalY = Math.max(10, Math.min(410, localY));
+    
+    const finalX = clampedLocalX + offsetX;
+    const finalY = clampedLocalY + offsetY;
+
+    setTables(prev => prev.map(t => t.id === table.id ? { ...t, x: finalX, y: finalY } : t));
   };
 
   const handleTablePointerUp = async (e: React.PointerEvent, table: Table) => {
@@ -698,8 +711,6 @@ export default function FloorPlan() {
     if (!tableInstance) return;
 
     const previousTables = [...tables];
-
-    // Connect movement to offline queue
     const coordinates = { x: tableInstance.x, y: tableInstance.y };
     addToOfflineQueue('update', 'restaurant_tables', { id: table.id, ...coordinates });
 
@@ -719,6 +730,75 @@ export default function FloorPlan() {
         console.error('Failed to update table location:', err);
         alert(`Failed to save table location: ${err.message || err}`);
         setTables(previousTables);
+      }
+    } else {
+      const local = localStorage.getItem('table_maitre_tables');
+      if (local) {
+        const parsed = JSON.parse(local);
+        const updated = parsed.map((t: any) => t.id === table.id ? { ...t, ...coordinates } : t);
+        localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
+      }
+    }
+  };
+
+  const handleAutoArrange = async () => {
+    if (activeSection === 'All') return;
+    const activeSecId = activeSection;
+    const sectionTables = [...tables].filter(t => t.section_id === activeSecId)
+      .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+    if (sectionTables.length === 0) return;
+
+    const secIndex = sections.findIndex(s => s.id === activeSecId);
+    const offsetX = secIndex >= 0 ? (secIndex % 2) * 800 : 0;
+    const offsetY = secIndex >= 0 ? Math.floor(secIndex / 2) * 500 : 0;
+
+    const arrangeUpdates = sectionTables.map((table, index) => {
+      const row = Math.floor(index / 5);
+      const col = index % 5;
+      const nextX = col * 180 + 100 + offsetX;
+      const nextY = row * 180 + 100 + offsetY;
+      return {
+        id: table.id,
+        x: nextX,
+        y: nextY
+      };
+    });
+
+    setTables(prev => prev.map(t => {
+      const match = arrangeUpdates.find(u => u.id === t.id);
+      if (match) {
+        return { ...t, x: match.x, y: match.y };
+      }
+      return t;
+    }));
+
+    for (const update of arrangeUpdates) {
+      addToOfflineQueue('update', 'restaurant_tables', { id: update.id, x: update.x, y: update.y });
+      if (isSupabaseConfigured) {
+        try {
+          await supabase
+            .from('restaurant_tables')
+            .update({ x: update.x, y: update.y })
+            .eq('id', update.id);
+        } catch (err) {
+          console.error(`Failed to auto-arrange table ${update.id}:`, err);
+        }
+      }
+    }
+
+    if (!isSupabaseConfigured) {
+      const local = localStorage.getItem('table_maitre_tables');
+      if (local) {
+        const parsed = JSON.parse(local);
+        const updated = parsed.map((t: any) => {
+          const match = arrangeUpdates.find(u => u.id === t.id);
+          if (match) {
+            return { ...t, x: match.x, y: match.y };
+          }
+          return t;
+        });
+        localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
       }
     }
   };
@@ -870,14 +950,14 @@ export default function FloorPlan() {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden p-6 pb-4">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-6">
+      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+        <div className="flex items-center gap-6 flex-wrap">
           <div className="flex bg-[#0f172a]/50 p-1 rounded-lg border border-slate-800">
             <button 
               onClick={() => setActiveSection('All')}
               className={cn("px-4 py-1.5 rounded text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer", activeSection === 'All' ? "bg-slate-800 text-[#3ecf8e] shadow-sm" : "text-slate-500 hover:text-slate-300")}
             >
-              All
+              All Sections Overview
             </button>
              {sectionsToShow.map(s => (
               <div key={s.id} className="relative flex items-center">
@@ -916,6 +996,40 @@ export default function FloorPlan() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Floor / List Toggle inside individual section */}
+          {activeSection !== 'All' && (
+            <div className="flex bg-[#0f172a]/50 p-1 rounded-lg border border-slate-800">
+              <button 
+                onClick={() => { setViewMode('floor'); setIsEditing(false); }}
+                className={cn(
+                  "px-3 py-1.5 rounded text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer", 
+                  viewMode === 'floor' ? "bg-slate-800 text-[#3ecf8e] shadow-sm" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                Floor View
+              </button>
+              <button 
+                onClick={() => { setViewMode('list'); setIsEditing(false); }}
+                className={cn(
+                  "px-3 py-1.5 rounded text-[10px] uppercase tracking-widest font-bold transition-all cursor-pointer", 
+                  viewMode === 'list' ? "bg-slate-800 text-[#3ecf8e] shadow-sm" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                List View
+              </button>
+            </div>
+          )}
+
+          {profile?.role !== 'waiter' && activeSection !== 'All' && isEditing && (
+            <button 
+              onClick={handleAutoArrange}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-950 border border-indigo-500/30 text-indigo-300 hover:text-white hover:border-indigo-400 rounded text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer shadow-md"
+              title="Auto Arrange Section Tables"
+            >
+              Auto Arrange
+            </button>
+          )}
+
           {profile?.role !== 'waiter' && activeSection !== 'All' && (
             <button 
               onClick={() => setIsEditing(!isEditing)}
@@ -930,7 +1044,7 @@ export default function FloorPlan() {
               {isEditing ? 'Commit Changes' : 'Configure Floor'}
             </button>
           )}
-          {profile?.role !== 'waiter' && (
+          {profile?.role !== 'waiter' && activeSection !== 'All' && (
             <button 
               onClick={handleAddTable}
               className="p-2 bg-[#020617] border border-slate-800 rounded text-slate-400 hover:text-[#3ecf8e] hover:border-[#3ecf8e]/30 transition-all cursor-pointer"
@@ -959,164 +1073,255 @@ export default function FloorPlan() {
               Initialize Default Sections
             </button>
           </div>
-        ) : (
-          <div 
-            ref={containerRef}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner touch-none select-none"
-          >
-          <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
-            Floor Plan
+        ) : activeSection === 'All' ? (
+          /* Grouped Sections Overview Panel Grid */
+          <div className="w-full h-full overflow-y-auto p-4 grid grid-cols-1 xl:grid-cols-2 gap-6 pb-20">
+            {sections.map(s => {
+              const sectionTables = tables.filter(t => t.section_id === s.id)
+                .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+              const secIndex = sections.findIndex(sec => sec.id === s.id);
+              const offsetX = secIndex >= 0 ? (secIndex % 2) * 800 : 0;
+              const offsetY = secIndex >= 0 ? Math.floor(secIndex / 2) * 500 : 0;
+
+              return (
+                <div key={s.id} className="glass-panel border border-slate-800/80 rounded-2xl p-5 flex flex-col min-h-[360px] bg-[#07111f]/60 backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-4 border-b border-slate-800/40 pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#3ecf8e]">{s.name}</h3>
+                    <span className="text-[10px] font-mono text-slate-500">{sectionTables.length} Tables</span>
+                  </div>
+                  
+                  {/* Miniature Visual Layout */}
+                  <div className="flex-1 relative bg-[#020617]/50 rounded-xl overflow-hidden border border-slate-900/60 min-h-[220px]">
+                    <div 
+                      className="absolute inset-0 opacity-[0.02] pointer-events-none" 
+                      style={{
+                        backgroundImage: 'radial-gradient(circle, #3ecf8e 1px, transparent 1px)', 
+                        backgroundSize: '20px 20px'
+                      }} 
+                    />
+                    {sectionTables.map(table => (
+                      <div 
+                        key={table.id}
+                        style={{
+                          position: 'absolute',
+                          left: `${Math.min(90, Math.max(10, ((table.x - offsetX) / 800) * 100))}%`,
+                          top: `${Math.min(90, Math.max(10, ((table.y - offsetY) / 500) * 100))}%`,
+                          transform: 'translate(-50%, -50%)',
+                        }}
+                        className="z-10 select-none cursor-pointer table-node-interactive"
+                        onClick={() => {
+                          setSelectedTable(table);
+                          setModalTab('service');
+                        }}
+                      >
+                        <div className="scale-[0.55] origin-center">
+                          <TableIcon 
+                            table={table}
+                            isEditing={false}
+                            selectedTable={selectedTable}
+                            setSelectedTable={setSelectedTable}
+                            handleTableContextMenu={() => {}}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {sectionTables.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-slate-600 uppercase tracking-wider">
+                        No tables in section
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-           
-          <motion.div 
-            ref={floorCanvasRef}
-            className={cn(
-              "origin-top-left relative transition-transform duration-75",
-              activeSection !== 'All' 
-                ? "w-full h-full p-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 content-start overflow-y-auto" 
-                : "border border-slate-800/40 bg-[#030712] rounded-3xl"
-            )}
-            animate={activeSection === 'All' ? { 
-              scale: viewState.scale 
-            } : {}}
-            transition={{
-              type: "spring",
-              stiffness: 280,
-              damping: 28,
-              mass: 0.5
-            }}
-            style={activeSection === 'All' ? { 
-              width: '2400px',
-              height: '1400px',
-              transform: `translate(${viewState.x}px, ${viewState.y}px)`,
-              transformOrigin: 'top left'
-            } : {}}
-            onWheel={(e) => {
-              if (activeSection === 'All') {
-                const delta = e.deltaY > 0 ? -0.05 : 0.05;
-                handleZoom(delta);
-              }
-            }}
-          >
-            {activeSection === 'All' && (
-              <>
-                <div 
-                  className="absolute inset-0 opacity-[0.04] pointer-events-none rounded-3xl" 
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, #3ecf8e 1.5px, transparent 1.5px)', 
-                    backgroundSize: '40px 40px'
-                  }} 
-                />
-                <div className="absolute inset-4 border border-slate-800/20 rounded-2xl pointer-events-none border-dashed" />
-                
-                <div className="absolute top-8 left-8 right-8 flex justify-between text-[10px] font-mono font-bold text-slate-800 select-none pointer-events-none">
-                  <span>SECTION-A</span>
-                  <span>SECTION-B</span>
-                  <span>SECTION-C</span>
-                  <span>SECTION-D</span>
+        ) : activeSection !== 'All' && viewMode === 'list' ? (
+          /* List View Data Grid */
+          <div className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-y-auto p-6 shadow-inner">
+            <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
+              List View
+            </div>
+            
+            <div className="mt-8 w-full">
+              <div className="w-full overflow-y-auto bg-[#030712]/40 rounded-3xl border border-slate-800/40 backdrop-blur-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Manager List View — {sectionNameMap[activeSection] || 'Active Section'}
+                  </h3>
                 </div>
-              </>
-            )}
-
-            {filteredTables.map(table => (
-              <div 
-                key={table.id}
-                onPointerDown={(e) => handleTablePointerDown(e, table)}
-                onPointerMove={(e) => handleTablePointerMove(e, table)}
-                onPointerUp={(e) => handleTablePointerUp(e, table)}
-                style={activeSection === 'All' ? { 
-                  position: 'absolute', 
-                  left: `${table.x}px`, 
-                  top: `${table.y}px`,
-                  cursor: (isEditing && profile?.role !== 'waiter') ? 'move' : 'pointer'
-                } : { position: 'relative' }}
-                className={cn(
-                  "z-10 animate-fade-in table-node-interactive select-none touch-none",
-                  draggingTableId === table.id && "z-50 opacity-90 scale-[1.02]"
-                )}
-              >
-                <TableIcon 
-                  table={table}
-                  isEditing={isEditing && profile?.role !== 'waiter'}
-                  selectedTable={selectedTable}
-                  setSelectedTable={setSelectedTable}
-                  handleTableContextMenu={handleTableContextMenu}
-                />
-              </div>
-            ))}
-          </motion.div>
-
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#3ecf8e]/3 rounded-full blur-[100px] pointer-events-none" />
-
-          <AnimatePresence>
-            {quickMenu && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                style={{ left: quickMenu.x - 200, top: quickMenu.y - 120 }}
-                className="absolute z-[100] w-48 bg-[#0f172a] border border-slate-800 rounded-xl shadow-2xl overflow-hidden p-1 backdrop-blur-xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-3 py-2 border-b border-slate-800/50 mb-1">
-                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Quick Status Shift</p>
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800/80 text-[10px] uppercase font-mono tracking-wider text-slate-500">
+                        <th className="py-3 px-4">Table</th>
+                        <th className="py-3 px-4">Section</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-center">Pax / Capacity</th>
+                        <th className="py-3 px-4">Guest / Reservation</th>
+                        <th className="py-3 px-4">Seated Time</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/40 text-xs text-slate-300">
+                      {filteredTables.map(t => (
+                        <tr 
+                          key={t.id} 
+                          className="hover:bg-slate-900/40 transition-colors group cursor-pointer"
+                          onClick={() => setSelectedTable(t)}
+                        >
+                          <td className="py-4 px-4 font-bold text-white">Table {t.number}</td>
+                          <td className="py-4 px-4 text-slate-400">{sectionNameMap[t.section_id] || '-'}</td>
+                          <td className="py-4 px-4">
+                            <span className={cn(
+                              "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full",
+                              t.status === 'available' && "text-emerald-400 bg-emerald-500/10",
+                              t.status === 'occupied' && "text-rose-400 bg-rose-500/10",
+                              t.status === 'reserved' && "text-amber-400 bg-amber-500/10",
+                              t.status === 'billing' && "text-purple-400 bg-purple-500/10",
+                              t.status === 'cleaning' && "text-cyan-400 bg-cyan-500/10",
+                              t.status === 'blocked' && "text-slate-400 bg-slate-500/10"
+                            )}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-center font-mono text-slate-400">
+                            <span className="font-bold text-white">{t.guest_count || 0}</span> / {t.capacity}
+                          </td>
+                          <td className="py-4 px-4 text-slate-400 font-medium">
+                            {t.reservation_name ? (
+                              <span className="text-[#3ecf8e] font-bold">{t.reservation_name}</span>
+                            ) : (
+                              <span className="text-slate-600">-</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-slate-500 font-mono">
+                            {t.seated_at ? getElapsedTime(t.seated_at) : '-'}
+                          </td>
+                          <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-end items-center gap-2">
+                              <select
+                                value={t.status}
+                                onChange={(e) => updateTableStatus(t.id, e.target.value as TableStatus)}
+                                className="bg-[#0f172a] border border-slate-800 text-[10px] text-slate-300 font-bold uppercase tracking-wider px-2 py-1 rounded cursor-pointer outline-none focus:border-[#3ecf8e]/40 transition-colors"
+                              >
+                                <option value="available">Open Table</option>
+                                <option value="occupied">Seat Guest</option>
+                                <option value="reserved">Set Reserved</option>
+                                <option value="billing">Request Bill</option>
+                                <option value="cleaning">Send to Cleaning</option>
+                                <option value="blocked">Block Table</option>
+                              </select>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredTables.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-500 uppercase tracking-widest font-mono text-[10px]">
+                            No tables found in this section
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-                {[
-                  { id: 'available', label: 'Open Table', icon: CheckCircle2, color: 'text-green-500' },
-                  { id: 'occupied', label: 'Seat Guest', icon: Users, color: 'text-[#3ecf8e]' },
-                  { id: 'reserved', label: 'Set Reserved', icon: Clock, color: 'text-blue-500' },
-                  { id: 'billing', label: 'Request Bill', icon: Receipt, color: 'text-purple-500' },
-                  { id: 'cleaning', label: 'Send to Cleaning', icon: AlertCircle, color: 'text-cyan-500' },
-                ].map((btn) => (
-                  <button
-                    key={btn.id}
-                    onClick={() => {
-                      updateTableStatus(quickMenu.tableId, btn.id as TableStatus);
-                      setQuickMenu(null);
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold uppercase tracking-tight text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
-                  >
-                    <btn.icon size={12} className={btn.color} />
-                    {btn.label}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {activeSection === 'All' && (
-            <div className="absolute bottom-6 left-6 flex items-center gap-2">
-              <div className="flex bg-[#0f172a]/80 backdrop-blur border border-slate-800 rounded overflow-hidden">
-                <button 
-                  onClick={() => handleZoom(0.1)}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition-all border-r border-slate-800 cursor-pointer"
-                >
-                  <Plus size={14} />
-                </button>
-                <button 
-                  onClick={() => handleZoom(-0.1)}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition-all border-r border-slate-800 cursor-pointer"
-                >
-                  <Minus size={14} />
-                </button>
-                <button 
-                  onClick={handleResetView}
-                  className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-[#3ecf8e] hover:bg-slate-800 transition-all cursor-pointer"
-                >
-                  Reset
-                </button>
-              </div>
-              <div className="px-3 py-1.5 bg-[#0f172a]/80 backdrop-blur border border-slate-800 rounded text-[9px] font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Maximize2 size={12} className="text-[#3ecf8e]/50" />
-                Zoom: {Math.round(viewState.scale * 100)}%
               </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          /* Visual Floor Canvas Container for a specific section */
+          <div 
+            ref={containerRef}
+            className="w-full h-full bg-[#020617] border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner flex items-center justify-center p-8"
+          >
+            <div className="absolute top-4 left-6 z-10 text-[9px] font-mono tracking-widest text-slate-700 uppercase pointer-events-none select-none">
+              Floor Plan
+            </div>
+
+            <div 
+              ref={floorCanvasRef}
+              className="border border-slate-800/40 bg-[#030712] rounded-3xl relative"
+              style={{
+                width: '800px',
+                height: '500px',
+              }}
+            >
+              {/* Grid Background Pattern */}
+              <div 
+                className="absolute inset-0 opacity-[0.04] pointer-events-none rounded-3xl" 
+                style={{
+                  backgroundImage: 'radial-gradient(circle, #3ecf8e 1.5px, transparent 1.5px)', 
+                  backgroundSize: '40px 40px'
+                }} 
+              />
+              <div className="absolute inset-4 border border-slate-800/20 rounded-2xl pointer-events-none border-dashed" />
+              
+              {/* Tables on absolute-positioned section canvas using saved x/y */}
+              {filteredTables.map(table => {
+                const secIndex = sections.findIndex(s => s.id === activeSection);
+                const offsetX = secIndex >= 0 ? (secIndex % 2) * 800 : 0;
+                const offsetY = secIndex >= 0 ? Math.floor(secIndex / 2) * 500 : 0;
+                
+                return (
+                  <div 
+                    key={table.id}
+                    onPointerDown={(e) => handleTablePointerDown(e, table)}
+                    onPointerMove={(e) => handleTablePointerMove(e, table)}
+                    onPointerUp={(e) => handleTablePointerUp(e, table)}
+                    style={{
+                      position: 'absolute',
+                      left: `${table.x - offsetX}px`,
+                      top: `${table.y - offsetY}px`,
+                      cursor: (isEditing && profile?.role !== 'waiter') ? 'move' : 'pointer'
+                    }}
+                    className={cn(
+                      "z-10 animate-fade-in table-node-interactive select-none touch-none flex flex-col items-center justify-center",
+                      draggingTableId === table.id && "z-50 opacity-90 scale-[1.02]"
+                    )}
+                  >
+                    <TableIcon 
+                      table={table}
+                      isEditing={isEditing && profile?.role !== 'waiter'}
+                      selectedTable={selectedTable}
+                      setSelectedTable={setSelectedTable}
+                      handleTableContextMenu={handleTableContextMenu}
+                    />
+
+                    {/* Rich Details Badge under the Table Icon in View Mode */}
+                    {!isEditing && (
+                      <div className="mt-1 bg-[#0b1428]/95 backdrop-blur-xl border border-slate-800/85 rounded-xl px-2.5 py-1.5 flex flex-col items-center gap-0.5 text-center min-w-[110px] shadow-lg pointer-events-none">
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tight">
+                          Pax: {table.guest_count || 0}/{table.capacity}
+                        </span>
+                        <span className={cn(
+                          "text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md",
+                          table.status === 'available' && "text-emerald-400 bg-emerald-500/10",
+                          table.status === 'occupied' && "text-rose-400 bg-rose-500/10",
+                          table.status === 'reserved' && "text-amber-400 bg-amber-500/10",
+                          table.status === 'billing' && "text-purple-400 bg-purple-500/10",
+                          table.status === 'cleaning' && "text-cyan-400 bg-cyan-500/10",
+                          table.status === 'blocked' && "text-slate-400 bg-slate-500/10"
+                        )}>
+                          {table.status}
+                        </span>
+                        {table.reservation_name && (
+                          <span className="text-[8px] font-bold text-[#3ecf8e] truncate max-w-[100px] leading-tight" title={table.reservation_name}>
+                            {table.reservation_name}
+                          </span>
+                        )}
+                        {table.seated_at && (
+                          <span className="text-[8px] font-mono text-slate-500 mt-0.5">
+                            {getElapsedTime(table.seated_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -1215,11 +1420,11 @@ export default function FloorPlan() {
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-3 font-mono">Status Shift Desk</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { id: 'available', label: 'Open Table', icon: CheckCircle2, color: 'text-green-500', bg: 'hover:bg-green-500/5' },
-                          { id: 'occupied', label: 'Seat Guest', icon: Users, color: 'text-[#3ecf8e]', bg: 'hover:bg-[#3ecf8e]/5' },
-                          { id: 'reserved', label: 'Reserve Table', icon: Clock, color: 'text-blue-500', bg: 'hover:bg-blue-500/5' },
-                          { id: 'billing', label: 'Request Bill', icon: Receipt, color: 'text-purple-500', bg: 'hover:bg-purple-500/5' },
-                          { id: 'cleaning', label: 'Send to Cleaning', icon: AlertCircle, color: 'text-cyan-500', bg: 'hover:bg-cyan-500/5' },
+                          { id: 'available', label: 'Set Open / Open Table', icon: CheckCircle2, color: 'text-green-500', bg: 'hover:bg-green-500/5' },
+                          { id: 'occupied', label: 'Seat Party / Seat Guest', icon: Users, color: 'text-[#3ecf8e]', bg: 'hover:bg-[#3ecf8e]/5' },
+                          { id: 'reserved', label: 'Book Spot / Reserve Table', icon: Clock, color: 'text-blue-500', bg: 'hover:bg-blue-500/5' },
+                          { id: 'billing', label: 'Process Bill / Request Bill', icon: Receipt, color: 'text-purple-500', bg: 'hover:bg-purple-500/5' },
+                          { id: 'cleaning', label: 'Maintain / Send to Cleaning', icon: AlertCircle, color: 'text-cyan-500', bg: 'hover:bg-cyan-500/5' },
                           { id: 'blocked', label: 'Deactivate', icon: XCircle, color: 'text-slate-600', bg: 'hover:bg-slate-700/5' },
                         ].map((btn) => (
                           <button
@@ -1497,7 +1702,7 @@ export default function FloorPlan() {
                         className="w-full py-1.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer h-10"
                       >
                         <Trash2 size={12} />
-                        Remove Table
+                        Decommission Unit / Remove Table
                       </button>
                     </div>
                   </form>

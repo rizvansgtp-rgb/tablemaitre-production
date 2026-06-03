@@ -103,19 +103,15 @@ function AIInsight({ storeContext }: { storeContext: any }) {
 function Dashboard() {
   const { profile } = useAuth();
   const [statsData, setStatsData] = useState({
-    available: { value: 12, total: 20 },
-    occupied: { value: 8, total: 20 },
-    reserved: { value: 5, total: 15 },
-    billing: { value: 0, total: 20 },
-    cleaning: { value: 0, total: 20 },
-    waitlist: { value: 3, total: 10 }
+    available: { value: 0, total: 0 },
+    occupied: { value: 0, total: 0 },
+    reserved: { value: 0, total: 0 },
+    billing: { value: 0, total: 0 },
+    cleaning: { value: 0, total: 0 },
+    waitlist: { value: 0, total: 0 }
   });
-  const [sectionsOccupancy, setSectionsOccupancy] = useState<Array<{ name: string, seats: number, percentage: number }>>([
-    { name: 'Indoor Main', seats: 24, percentage: 85 },
-    { name: 'Outdoor Terrace', seats: 16, percentage: 45 },
-    { name: 'VIP Lounge', seats: 8, percentage: 90 },
-    { name: 'Garden Area', seats: 20, percentage: 20 }
-  ]);
+  const [sectionsOccupancy, setSectionsOccupancy] = useState<Array<{ name: string, seats: number, percentage: number }>>([]);
+  const [hourlyOccupancy, setHourlyOccupancy] = useState<number[]>(Array(12).fill(0));
   const [feedActivities, setFeedActivities] = useState<any[]>([
     { id: 'act-1', type: 'checkin', guest: 'Michael S.', time: '2m ago', desc: 'Party of 4 seated in Terrace Section', icon: Map, color: 'text-blue-400' },
     { id: 'act-2', type: 'booking', guest: 'Sarah L.', time: '14m ago', desc: 'Digital reservation confirmed for 20:30', icon: Calendar, color: 'text-[#3ecf8e]' },
@@ -128,8 +124,89 @@ function Dashboard() {
     let active = true;
     const fetchDashboardData = async () => {
       const activeStore = profile?.active_store || '0301';
+      
       if (!isSupabaseConfigured) {
-        setLoading(false);
+        // Read local storage fallback
+        const localTables = localStorage.getItem('table_maitre_tables');
+        const localReservations = localStorage.getItem('table_maitre_reservations');
+        const localWaitlist = localStorage.getItem('table_maitre_waitlist');
+        const localSections = localStorage.getItem('table_maitre_sections');
+
+        const parsedTables = localTables ? JSON.parse(localTables) : [];
+        const parsedReservations = localReservations ? JSON.parse(localReservations) : [];
+        const parsedWaitlist = localWaitlist ? JSON.parse(localWaitlist) : [];
+        const parsedSections = localSections ? JSON.parse(localSections) : [];
+
+        // Filter by active store
+        const storeTables = parsedTables.filter((t: any) => t.store_id === activeStore);
+        const storeReservations = parsedReservations.filter((r: any) => r.store_id === activeStore);
+        const storeWaitlist = parsedWaitlist.filter((w: any) => w.store_id === activeStore);
+        const storeSections = parsedSections.filter((s: any) => s.store_id === activeStore);
+
+        const totalTablesCount = storeTables.length;
+        const availableCount = storeTables.filter((t: any) => t.status === 'available').length;
+        const occupiedCount = storeTables.filter((t: any) => t.status === 'occupied').length;
+        const billingCount = storeTables.filter((t: any) => t.status === 'billing').length;
+        const cleaningCount = storeTables.filter((t: any) => t.status === 'cleaning').length;
+
+        const reservedTablesCount = storeTables.filter((t: any) => t.status === 'reserved').length;
+        const activeResCount = storeReservations.filter((r: any) => ['booked', 'confirmed'].includes(r.status)).length;
+        const reservedCountVal = reservedTablesCount + activeResCount;
+        const waitlistCount = storeWaitlist.filter((w: any) => w.status === 'waiting').length;
+
+        const totalTablesVal = totalTablesCount || 20;
+
+        const occupancy = storeSections.map((sec: any) => {
+          const secTables = storeTables.filter((t: any) => t.section_id === sec.id);
+          const totalSeats = secTables.reduce((sum: number, t: any) => sum + (t.capacity || 0), 0);
+          const occupiedTables = secTables.filter((t: any) => t.status === 'occupied' || t.status === 'billing');
+          const occupiedSeats = occupiedTables.reduce((sum: number, t: any) => sum + (t.guest_count || t.capacity || 0), 0);
+          const percentage = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
+          return {
+            name: sec.name,
+            seats: totalSeats,
+            percentage: Math.min(100, percentage)
+          };
+        });
+
+        // Compute hourly occupancy for local storage
+        const todayReservations = storeReservations.filter((r: any) => {
+          if (!['booked', 'confirmed', 'seated', 'completed'].includes(r.status)) return false;
+          const rDate = new Date(r.datetime);
+          const start = new Date();
+          start.setHours(0,0,0,0);
+          const end = new Date();
+          end.setHours(23,59,59,999);
+          return rDate >= start && rDate <= end;
+        });
+
+        const hourlyCovers = Array(12).fill(0);
+        todayReservations.forEach((res: any) => {
+          const rDate = new Date(res.datetime);
+          const hour = rDate.getHours();
+          if (hour >= 12 && hour <= 23) {
+            hourlyCovers[hour - 12] += res.party_size || 0;
+          }
+        });
+        const totalCapacity = storeTables.reduce((sum: number, t: any) => sum + (t.capacity || 0), 0) || 50;
+        const computedHourlyOccupancy = hourlyCovers.map(covers => {
+          const pct = totalCapacity > 0 ? Math.round((covers / totalCapacity) * 100) : 0;
+          return Math.min(100, pct);
+        });
+
+        if (active) {
+          setStatsData({
+            available: { value: availableCount, total: totalTablesVal },
+            occupied: { value: occupiedCount, total: totalTablesVal },
+            reserved: { value: reservedCountVal, total: Math.max(15, reservedCountVal) },
+            billing: { value: billingCount, total: totalTablesVal },
+            cleaning: { value: cleaningCount, total: totalTablesVal },
+            waitlist: { value: waitlistCount, total: Math.max(10, waitlistCount) }
+          });
+          setSectionsOccupancy(occupancy);
+          setHourlyOccupancy(computedHourlyOccupancy);
+          setLoading(false);
+        }
         return;
       }
 
@@ -150,7 +227,7 @@ function Dashboard() {
         const billingCount = tableList.filter(t => t.status === 'billing').length;
         const cleaningCount = tableList.filter(t => t.status === 'cleaning').length;
 
-        // 2. Fetch reservations
+        // 2. Fetch reservations count
         const { count: reservedCount, error: resError } = await supabase
           .from('reservations')
           .select('*', { count: 'exact', head: true })
@@ -159,7 +236,7 @@ function Dashboard() {
 
         if (resError) throw resError;
 
-        // 3. Fetch waitlist
+        // 3. Fetch waitlist count
         const { count: waitlistCount, error: wlError } = await supabase
           .from('waitlist')
           .select('*', { count: 'exact', head: true })
@@ -168,12 +245,29 @@ function Dashboard() {
 
         if (wlError) throw wlError;
 
+        // 4. Fetch today's reservations for Hourly Occupancy
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const { data: todayReservations, error: todayResError } = await supabase
+          .from('reservations')
+          .select('datetime, party_size, status')
+          .eq('store_id', activeStore)
+          .gte('datetime', todayStart.toISOString())
+          .lte('datetime', todayEnd.toISOString())
+          .in('status', ['booked', 'confirmed', 'seated', 'completed']);
+
+        if (todayResError) throw todayResError;
+
         // Calculate dynamic capacities
         const totalTablesVal = totalTablesCount || 20;
-        const reservedVal = reservedCount || 0;
+        const reservedTablesCount = tableList.filter(t => t.status === 'reserved').length;
+        const reservedVal = reservedTablesCount + (reservedCount || 0);
         const waitlistVal = waitlistCount || 0;
 
-        // 4. Fetch sections
+        // 5. Fetch sections
         const { data: sections, error: sectionsError } = await supabase
           .from('sections')
           .select('*')
@@ -195,7 +289,23 @@ function Dashboard() {
           };
         });
 
-        // 5. Fetch recent activity logs
+        // Compute hourly occupancy
+        const hourlyCovers = Array(12).fill(0);
+        const todayReservationsList = todayReservations || [];
+        todayReservationsList.forEach((res: any) => {
+          const rDate = new Date(res.datetime);
+          const hour = rDate.getHours();
+          if (hour >= 12 && hour <= 23) {
+            hourlyCovers[hour - 12] += res.party_size || 0;
+          }
+        });
+        const totalCapacity = tableList.reduce((sum, t) => sum + (t.capacity || 0), 0) || 50;
+        const computedHourlyOccupancy = hourlyCovers.map(covers => {
+          const pct = totalCapacity > 0 ? Math.round((covers / totalCapacity) * 100) : 0;
+          return Math.min(100, pct);
+        });
+
+        // 6. Fetch recent activity logs
         const { data: logs, error: logsError } = await supabase
           .from('activity_logs')
           .select('*')
@@ -245,8 +355,9 @@ function Dashboard() {
             reserved: { value: reservedVal, total: Math.max(15, reservedVal) },
             billing: { value: billingCount, total: totalTablesVal },
             cleaning: { value: cleaningCount, total: totalTablesVal },
-            waitlist: { value: waitlistVal, total: Math.max(10, waitlistVal) }
+            waitlist: { value: waitlistCount, total: Math.max(10, waitlistCount) }
           });
+          setHourlyOccupancy(computedHourlyOccupancy);
           if (occupancy.length > 0) {
             setSectionsOccupancy(occupancy);
           }
@@ -270,12 +381,12 @@ function Dashboard() {
   }, [profile?.active_store]);
 
   const stats = [
-    { label: 'Open Tables',     value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, accent: '#3ecf8e', accentDim: 'rgba(62,207,142,0.12)',  barColor: '#3ecf8e' },
-    { label: 'Seated Tables',  value: statsData.occupied.value,  total: statsData.occupied.total,  icon: Users,        accent: '#f43f5e', accentDim: 'rgba(244,63,94,0.12)',   barColor: '#f43f5e' },
-    { label: 'Reserved Tables',value: statsData.reserved.value,  total: statsData.reserved.total,  icon: Clock,        accent: '#f59e0b', accentDim: 'rgba(245,158,11,0.12)', barColor: '#f59e0b' },
-    { label: 'Billing Tables', value: statsData.billing.value,   total: statsData.billing.total,   icon: Receipt,      accent: '#8b5cf6', accentDim: 'rgba(139,92,246,0.12)',  barColor: '#8b5cf6' },
-    { label: 'Cleaning Tables',value: statsData.cleaning.value,  total: statsData.cleaning.total,  icon: Brush,        accent: '#06b6d4', accentDim: 'rgba(6,182,212,0.12)',   barColor: '#06b6d4' },
-    { label: 'Wait Queue',     value: statsData.waitlist.value,  total: statsData.waitlist.total,  icon: AlertCircle,  accent: '#6366f1', accentDim: 'rgba(99,102,241,0.12)',  barColor: '#6366f1' },
+    { label: 'Available',     value: statsData.available.value, total: statsData.available.total, icon: CheckCircle2, accent: '#3ecf8e', accentDim: 'rgba(62,207,142,0.12)',  barColor: '#3ecf8e' },
+    { label: 'Occupied',  value: statsData.occupied.value,  total: statsData.occupied.total,  icon: Users,        accent: '#f43f5e', accentDim: 'rgba(244,63,94,0.12)',   barColor: '#f43f5e' },
+    { label: 'Reserved',value: statsData.reserved.value,  total: statsData.reserved.total,  icon: Clock,        accent: '#f59e0b', accentDim: 'rgba(245,158,11,0.12)', barColor: '#f59e0b' },
+    { label: 'Billing', value: statsData.billing.value,   total: statsData.billing.total,   icon: Receipt,      accent: '#8b5cf6', accentDim: 'rgba(139,92,246,0.12)',  barColor: '#8b5cf6' },
+    { label: 'Cleaning',value: statsData.cleaning.value,  total: statsData.cleaning.total,  icon: Brush,        accent: '#06b6d4', accentDim: 'rgba(6,182,212,0.12)',   barColor: '#06b6d4' },
+    { label: 'Waitlist',     value: statsData.waitlist.value,  total: statsData.waitlist.total,  icon: AlertCircle,  accent: '#6366f1', accentDim: 'rgba(99,102,241,0.12)',  barColor: '#6366f1' },
   ];
 
   const storeContext = {
@@ -287,16 +398,14 @@ function Dashboard() {
   };
 
   return (
-    <div style={{ paddingBottom: 40 }}>
-      {/* Dashboard Header */}
-      <div className="flex items-end justify-between" style={{ marginBottom: 28 }}>
+    <div className="h-full w-full overflow-y-auto p-6 pb-20" style={{ background: 'var(--bg-deep)' }}>
+      {/* Top Header */}
+      <div className="flex items-center justify-between" style={{ marginBottom: 32 }}>
         <div>
-          <div className="page-header" style={{ marginBottom: 0 }}>
-            <h2 className="page-title" style={{ fontSize: 26 }}>Executive Overview</h2>
-            <p className="page-subtitle">Live restaurant network metrics and store operations.</p>
-          </div>
+          <h1 className="page-title">Dashboard Overview</h1>
+          <p className="page-subtitle">Real-time status tracking for this branch</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="chip" style={{ fontFamily: 'var(--font-mono)' }}>Store: {profile?.active_store || 'N/A'}</span>
           <span className="chip" style={{ fontFamily: 'var(--font-mono)' }}>Dinner Shift</span>
           <span style={{
@@ -317,7 +426,7 @@ function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.07 }}
             key={stat.label}
-            className="stat-card"
+            className="stat-card rounded-2xl"
           >
             {/* Top accent bar */}
             <div className="stat-card-accent-bar" style={{ background: `linear-gradient(90deg, ${stat.accent}, ${stat.accent}88)` }} />
@@ -332,7 +441,7 @@ function Dashboard() {
             </div>
 
             <div className="flex items-baseline justify-between" style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.04em', color: stat.accent, lineHeight: 1 }}>
+              <div className="text-3xl" style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.04em', color: stat.accent, lineHeight: 1 }}>
                 {stat.value}
               </div>
               <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
@@ -373,13 +482,13 @@ function Dashboard() {
               </div>
             </div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 8px 8px', gap: 6 }}>
-              {[40, 60, 80, 70, 90, 50, 40, 20, 60, 95, 80, 50].map((h, i) => (
+              {hourlyOccupancy.map((h, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flex: 1, position: 'relative' }}
                   className="group"
                 >
                   <motion.div
                     initial={{ height: 0 }}
-                    animate={{ height: `${h}%` }}
+                    animate={{ height: `${Math.max(4, h)}%` }}
                     transition={{ delay: i * 0.05 + 0.3, duration: 0.6 }}
                     style={{
                       width: '100%', maxWidth: 16, borderRadius: 4,

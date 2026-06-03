@@ -48,6 +48,27 @@ async function runCleanup() {
         console.log('✅ Successfully cleaned tables.');
       }
     }
+
+    // Reset all remaining tables to available/pristine state
+    console.log('Resetting all remaining tables to available...');
+    const remainingTables = tables.filter(t => !tablesToDelete.some(td => td.id === t.id));
+    if (remainingTables.length > 0) {
+      const { error: resetErr } = await supabase
+        .from('restaurant_tables')
+        .update({
+          status: 'available',
+          guest_count: null,
+          reservation_name: null,
+          seated_at: null,
+          waiter_name: null
+        })
+        .in('id', remainingTables.map(t => t.id));
+      if (resetErr) {
+        console.error('❌ Error resetting tables:', resetErr);
+      } else {
+        console.log('✅ Successfully reset all remaining tables to available.');
+      }
+    }
   }
 
   // 2. Clean reservations
