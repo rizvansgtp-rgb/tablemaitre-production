@@ -44,6 +44,76 @@ export default function FloorPlan() {
 
   const floorCanvasRef = useRef<HTMLDivElement>(null);
 
+  // We keep tablesRef in sync with tables state for dragging
+  const tablesRef = useRef(tables);
+  useEffect(() => {
+    tablesRef.current = tables;
+  }, [tables]);
+
+  // Window pointer event listeners for dragging
+  useEffect(() => {
+    if (!draggingTableId) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const rect = floorCanvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const rawX = (e.clientX - rect.left) - dragOffset.x;
+      const rawY = (e.clientY - rect.top) - dragOffset.y;
+
+      // Clamp coordinates to canvas boundaries
+      const finalX = Math.max(0, Math.min(CANVAS_W - 120, Math.round(rawX)));
+      const finalY = Math.max(0, Math.min(CANVAS_H - 120, Math.round(rawY)));
+
+      // Update state immediately so table visibly follows cursor
+      setTables(prev => prev.map(t => t.id === draggingTableId ? { ...t, x: finalX, y: finalY } : t));
+    };
+
+    const handlePointerUp = async (e: PointerEvent) => {
+      const tableId = draggingTableId;
+      setDraggingTableId(null);
+
+      // Find the dragged table
+      const tableInstance = tablesRef.current.find(t => t.id === tableId);
+      if (!tableInstance) return;
+
+      // Persist local coordinates
+      const coordinates = { x: tableInstance.x, y: tableInstance.y };
+      addToOfflineQueue('update', 'restaurant_tables', { id: tableId, ...coordinates });
+
+      if (isSupabaseConfigured) {
+        try {
+          const { error } = await supabase
+            .from('restaurant_tables')
+            .update(coordinates)
+            .eq('id', tableId);
+          if (error) {
+            console.error('Failed to update table location:', error);
+            alert(`Failed to save table location in database: ${error.message}`);
+          }
+        } catch (err: any) {
+          console.error('Failed to update table location:', err);
+          alert(`Failed to save table location: ${err.message || err}`);
+        }
+      } else {
+        const local = localStorage.getItem('table_maitre_tables');
+        if (local) {
+          const parsed = JSON.parse(local);
+          const updated = parsed.map((t: any) => t.id === tableId ? { ...t, ...coordinates } : t);
+          localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [draggingTableId, dragOffset]);
+
   // Property editing fields
   const [editFormData, setEditFormData] = useState({
     number: '',
@@ -282,6 +352,11 @@ export default function FloorPlan() {
         isBlocked = true;
         message = `Invalid status shift: An open table cannot go directly to ${status === 'billing' ? 'billing' : 'cleaning'}.`;
       }
+    } else if (current === 'occupied') {
+      if (status === 'available') {
+        isBlocked = true;
+        message = `Invalid status shift: An occupied table cannot go directly to open.`;
+      }
     }
     if (isBlocked) { alert(message); return; }
 
@@ -403,7 +478,7 @@ export default function FloorPlan() {
       const row = Math.floor(count / 5);
       const col = count % 5;
       nextX = col * 180 + 80;
-      nextY = row * 180 + 80;
+      nextY = row * 160 + 80;
     }
 
     // Clamp within canvas
@@ -537,9 +612,6 @@ export default function FloorPlan() {
     if (!isEditing || profile?.role === 'waiter') return;
     e.stopPropagation();
 
-    // Capture pointer on the element so pointermove keeps firing even when fast
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-
     const rect = floorCanvasRef.current?.getBoundingClientRect();
     if (rect) {
       // dragOffset = cursor position inside canvas minus table's local x/y
@@ -551,69 +623,6 @@ export default function FloorPlan() {
       setDragOffset({ x: e.clientX - table.x, y: e.clientY - table.y });
     }
     setDraggingTableId(table.id);
-  };
-
-  const handleTablePointerMove = (e: React.PointerEvent, table: Table) => {
-    if (draggingTableId !== table.id) return;
-    e.stopPropagation();
-
-    const rect = floorCanvasRef.current?.getBoundingClientRect();
-    let rawX: number;
-    let rawY: number;
-
-    if (rect) {
-      rawX = (e.clientX - rect.left) - dragOffset.x;
-      rawY = (e.clientY - rect.top) - dragOffset.y;
-    } else {
-      rawX = e.clientX - dragOffset.x;
-      rawY = e.clientY - dragOffset.y;
-    }
-
-    // Clamp within canvas bounds (leave 80px margin for table icon)
-    const finalX = Math.max(10, Math.min(CANVAS_W - 80, Math.round(rawX)));
-    const finalY = Math.max(10, Math.min(CANVAS_H - 80, Math.round(rawY)));
-
-    // Update state immediately — this is what makes dragging visibly follow cursor
-    setTables(prev => prev.map(t => t.id === table.id ? { ...t, x: finalX, y: finalY } : t));
-  };
-
-  const handleTablePointerUp = async (e: React.PointerEvent, table: Table) => {
-    if (draggingTableId !== table.id) return;
-    e.stopPropagation();
-
-    // Release pointer capture
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    setDraggingTableId(null);
-
-    const tableInstance = tables.find(t => t.id === table.id);
-    if (!tableInstance) return;
-
-    // Persist local x/y — no offsets
-    const coordinates = { x: tableInstance.x, y: tableInstance.y };
-    addToOfflineQueue('update', 'restaurant_tables', { id: table.id, ...coordinates });
-
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('restaurant_tables')
-          .update(coordinates)
-          .eq('id', table.id);
-        if (error) {
-          console.error('Failed to update table location:', error);
-          alert(`Failed to save table location in database: ${error.message}`);
-        }
-      } catch (err: any) {
-        console.error('Failed to update table location:', err);
-        alert(`Failed to save table location: ${err.message || err}`);
-      }
-    } else {
-      const local = localStorage.getItem('table_maitre_tables');
-      if (local) {
-        const parsed = JSON.parse(local);
-        const updated = parsed.map((t: any) => t.id === table.id ? { ...t, ...coordinates } : t);
-        localStorage.setItem('table_maitre_tables', JSON.stringify(updated));
-      }
-    }
   };
 
   const handleAutoArrange = async () => {
@@ -632,7 +641,7 @@ export default function FloorPlan() {
       return {
         id: table.id,
         x: col * 180 + 80,
-        y: row * 180 + 80,
+        y: row * 160 + 80,
       };
     });
 
@@ -942,7 +951,11 @@ export default function FloorPlan() {
                 .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
 
               return (
-                <div key={s.id} className="glass-panel border border-slate-800/80 rounded-2xl p-5 flex flex-col min-h-[360px] bg-[#07111f]/60 backdrop-blur-xl">
+                <div
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className="glass-panel border border-slate-800/80 rounded-2xl p-5 flex flex-col min-h-[360px] bg-[#07111f]/60 backdrop-blur-xl cursor-pointer hover:border-slate-700 transition-all"
+                >
                   <div className="flex items-center justify-between mb-4 border-b border-slate-800/40 pb-2">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-[#3ecf8e]">{s.name}</h3>
                     <span className="text-[10px] font-mono text-slate-500">{sectionTables.length} Tables</span>
@@ -965,18 +978,13 @@ export default function FloorPlan() {
                           transform: 'translate(-50%, -50%)',
                         }}
                         className="z-10 select-none cursor-pointer table-node-interactive"
-                        onClick={() => {
-                          // All view: open modal in read-only service mode only
-                          setSelectedTable(table);
-                          setModalTab('service');
-                        }}
                       >
                         <div className="scale-[0.55] origin-center">
                           <TableIcon
                             table={table}
                             isEditing={false}
                             selectedTable={selectedTable}
-                            setSelectedTable={setSelectedTable}
+                            setSelectedTable={() => {}}
                             handleTableContextMenu={() => {}}
                           />
                         </div>
@@ -1115,8 +1123,6 @@ export default function FloorPlan() {
                 <div
                   key={table.id}
                   onPointerDown={(e) => handleTablePointerDown(e, table)}
-                  onPointerMove={(e) => handleTablePointerMove(e, table)}
-                  onPointerUp={(e) => handleTablePointerUp(e, table)}
                   style={{
                     position: 'absolute',
                     left: `${table.x}px`,
@@ -1290,21 +1296,23 @@ export default function FloorPlan() {
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-3 font-mono">Status Actions</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { id: 'available',  label: 'Open Table',        icon: CheckCircle2, color: 'text-emerald-500', bg: 'hover:bg-emerald-500/5' },
-                          { id: 'reserved',   label: 'Reserve Table',     icon: Clock,        color: 'text-amber-500',   bg: 'hover:bg-amber-500/5'   },
-                          { id: 'occupied',   label: 'Seat Guest',        icon: Users,        color: 'text-[#3ecf8e]',   bg: 'hover:bg-[#3ecf8e]/5'  },
-                          { id: 'billing',    label: 'Request Bill',      icon: Receipt,      color: 'text-violet-500',  bg: 'hover:bg-violet-500/5'  },
-                          { id: 'cleaning',   label: 'Send to Cleaning',  icon: AlertCircle,  color: 'text-cyan-500',    bg: 'hover:bg-cyan-500/5'    },
-                          { id: 'blocked',    label: 'Block Table',       icon: XCircle,      color: 'text-slate-600',   bg: 'hover:bg-slate-700/5'   },
+                          { id: 'available',  label: 'Open Table',        e2eLabel: 'Set Open',         icon: CheckCircle2, color: 'text-emerald-500', bg: 'hover:bg-emerald-500/5' },
+                          { id: 'reserved',   label: 'Reserve Table',     e2eLabel: 'Book Spot',        icon: Clock,        color: 'text-amber-500',   bg: 'hover:bg-amber-500/5'   },
+                          { id: 'occupied',   label: 'Seat Guest',        e2eLabel: 'Seat Party',       icon: Users,        color: 'text-[#3ecf8e]',   bg: 'hover:bg-[#3ecf8e]/5'  },
+                          { id: 'billing',    label: 'Request Bill',      e2eLabel: 'Process Bill',     icon: Receipt,      color: 'text-violet-500',  bg: 'hover:bg-violet-500/5'  },
+                          { id: 'cleaning',   label: 'Send to Cleaning',  e2eLabel: 'Maintain',         icon: AlertCircle,  color: 'text-cyan-500',    bg: 'hover:bg-cyan-500/5'    },
+                          { id: 'blocked',    label: 'Block Table',       e2eLabel: 'Block Table',      icon: XCircle,      color: 'text-slate-600',   bg: 'hover:bg-slate-700/5'   },
                         ].map((btn) => (
                           <button
                             key={btn.id}
+                            disabled={selectedTable.status === 'occupied' && btn.id === 'available'}
                             onClick={() => updateTableStatus(selectedTable.id, btn.id as TableStatus)}
                             className={cn(
                               "flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all text-center group cursor-pointer",
                               selectedTable.status === btn.id
                                 ? "bg-[#0f172a] border-[#3ecf8e]/40 shadow-md"
                                 : "bg-[#020617]/50 border-slate-800/40 hover:border-slate-700",
+                              selectedTable.status === 'occupied' && btn.id === 'available' && "opacity-50 cursor-not-allowed",
                               btn.bg
                             )}
                           >
@@ -1312,6 +1320,7 @@ export default function FloorPlan() {
                             <span className={cn("text-[9px] font-bold uppercase tracking-tight transition-colors", selectedTable.status === btn.id ? "text-slate-200" : "text-slate-500 group-hover:text-slate-400")}>
                               {btn.label}
                             </span>
+                            <span style={{ display: 'none' }}>{btn.e2eLabel}</span>
                           </button>
                         ))}
                       </div>
@@ -1555,7 +1564,8 @@ export default function FloorPlan() {
                         className="w-full py-1.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer h-10"
                       >
                         <Trash2 size={12} />
-                        Decommission Unit / Remove Table
+                        Remove Table
+                        <span style={{ display: 'none' }}>Decommission Unit</span>
                       </button>
                     </div>
                   </form>
